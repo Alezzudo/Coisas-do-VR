@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return Promise.resolve({ success: false, message: 'Nenhum arquivo para processar.' });
         }
         try {
+            // O renderer não espera um retorno direto aqui,
+            // mas sim pelos eventos de progresso e conclusão.
             return await ipcRenderer.invoke('process-files-batch', filePaths);
         } catch (error) {
             console.error('Erro ao invocar process-files-batch:', error);
@@ -41,6 +43,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
      * @param {function(Object): void} callback - A função a ser chamada com os dados de progresso.
      */
     onProcessingFileProgress: (callback) => {
+        // Certifica-se de que o listener não é adicionado múltiplas vezes
+        ipcRenderer.removeAllListeners('processing-file-progress');
         ipcRenderer.on('processing-file-progress', (event, ...args) => callback(...args));
     },
 
@@ -49,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
      * @param {function(Object): void} callback - A função a ser chamada com os dados de progresso.
      */
     onProcessingOverallProgress: (callback) => {
+        ipcRenderer.removeAllListeners('processing-overall-progress');
         ipcRenderer.on('processing-overall-progress', (event, ...args) => callback(...args));
     },
 
@@ -57,6 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
      * @param {function(Object[]): void} callback - A função a ser chamada com os resultados de todos os arquivos processados.
      */
     onProcessingBatchComplete: (callback) => {
+        ipcRenderer.removeAllListeners('processing-batch-complete');
         ipcRenderer.on('processing-batch-complete', (event, ...args) => callback(...args));
     },
 
@@ -84,7 +90,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
      * Exemplo de API para logs (útil para depuração ou mensagens de usuário).
      * Você pode expandir isso para enviar logs para o main process para serem salvos em arquivo, etc.
      * @param {string} message - A mensagem de log.
-     * @param {'info'|'warn'|'error'} level - O nível do log.
+     * @param {'info'|'warn'|'error'|'debug'} level - O nível do log.
      */
     log: (message, level = 'info') => {
         ipcRenderer.send('log-message', { message, level });
