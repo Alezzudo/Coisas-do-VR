@@ -1,21 +1,80 @@
 {
   "name": "catalogo-autonomo",
   "version": "1.0.0",
-  "description": "Seu bibliotecário pessoal de recursos VR, totalmente autônomo.",
+  "description": "Seu bibliotecário pessoal de recursos VR, totalmente autônomo. Uma aplicação Electron aprimorada.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "start:dev": "npm run clean && electron . --inspect=5858 --remote-debugging-port=9222 --enable-logging",
+    "watch": "nodemon --exec 'electron .' --watch main.js --watch preload.js --watch index.html",
+    "clean": "rimraf dist out",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "echo \"No test specified yet, but here's the script!\" && exit 0",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "npm run build",
+    "build": "npm run build:win && npm run build:mac && npm run build:linux",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "publish:win": "electron-builder --win --x64 --publish onTagOrDraft",
+    "publish:mac": "electron-builder --mac --publish onTagOrDraft",
+    "publish:linux": "electron-builder --linux --publish onTagOrDraft",
+    "rebuild": "electron-rebuild -f -w",
+    "postinstall": "electron-builder install-app-deps"
   },
-  "keywords": [],
-  "author": "Seu Nome",
+  "keywords": [
+    "Electron",
+    "Catálogo",
+    "VR",
+    "Autônomo",
+    "Assets",
+    "Gerenciador"
+  ],
+  "author": "Seu Nome <seu.email@example.com>",
   "license": "MIT",
   "devDependencies": {
     "electron": "^30.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "eslint": "^8.57.0",
+    "eslint-plugin-node": "^11.1.0",
+    "nodemon": "^3.1.4",
+    "rimraf": "^6.0.0"
   },
   "dependencies": {
     "adm-zip": "^0.5.10"
+  },
+  "build": {
+    "appId": "com.seu.catalogovr",
+    "productName": "CatalogoAutonomo",
+    "copyright": "Copyright © 2025 ${author}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "package.json",
+      "node_modules",
+      "icon.png"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility",
+      "icon": "icon.png"
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    }
   }
 }
