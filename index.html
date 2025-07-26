@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Baú Digital Personalizado</title>
+    <style>
+        /* Estilos CSS para deixar os cards bonitos */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e; /* Fundo escuro */
+            color: #e0e0e0; /* Texto claro */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px; /* Espaço entre os cards */
+            justify-content: center;
+        }
+
+        .card {
+            background-color: #2a2a4a; /* Fundo do card */
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); /* Sombra mais profunda */
+            width: 300px; /* Largura fixa do card */
+            overflow: hidden; /* Garante que a imagem não saia do card */
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid #4a4a7a; /* Borda sutil */
+            display: flex;
+            flex-direction: column; /* Organiza conteúdo em coluna */
+        }
+
+        .card:hover {
+            transform: translateY(-8px); /* Efeito de flutuação ao passar o mouse */
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        .card-image {
+            width: 100%;
+            height: 200px; /* Altura fixa para as imagens */
+            object-fit: cover; /* Faz a imagem cobrir o espaço sem distorcer */
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+        }
+
+        .card-content {
+            padding: 20px;
+            flex-grow: 1; /* Permite que o conteúdo expanda */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Espaça os elementos internos */
+        }
+
+        .card-title {
+            font-size: 1.6em;
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #93b7be; /* Cor do título */
+        }
+
+        .card-description {
+            font-size: 0.95em;
+            line-height: 1.5;
+            color: #b0b0d0; /* Cor da descrição */
+            margin-bottom: 15px;
+        }
+
+        .card-button {
+            display: block; /* Ocupa a largura total */
+            width: 100%;
+            padding: 12px 20px;
+            background-color: #8a2be2; /* Azul violeta */
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s ease;
+            margin-top: auto; /* Empurra o botão para o final do card-content */
+        }
+
+        .card-button:hover {
+            background-color: #6a00c2; /* Azul violeta mais escuro no hover */
+        }
+
+        /* Responsividade básica */
+        @media (max-width: 768px) {
+            .card {
+                width: 90%; /* Ocupa mais largura em telas menores */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <img src="https://via.placeholder.com/300x200/8A2BE2/FFFFFF?text=Capa+Doc. Importante" alt="Capa do Documento Importante" class="card-image">
+        <div class="card-content">
+            <h2 class="card-title">Relatório Anual 2025</h2>
+            <p class="card-description">Este é o relatório financeiro consolidado do ano de 2025, contendo balanços e projeções futuras.</p>
+            <a href="URL_DO_SEU_ARQUIVO_AQUI.pdf" class="card-button" download>Baixar Relatório</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <img src="https://via.placeholder.com/300x200/20B2AA/FFFFFF?text=Capa+Fotos+Viagem" alt="Capa das Fotos da Viagem" class="card-image">
+        <div class="card-content">
+            <h2 class="card-title">Fotos Viagem Férias</h2>
+            <p class="card-description">Coleção das melhores fotos da nossa incrível viagem para a Patagônia. Paisagens e momentos inesquecíveis.</p>
+            <a href="URL_DO_SEU_ARQUIVO_DE_FOTOS_AQUI.zip" class="card-button" download>Baixar Fotos</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <img src="https://via.placeholder.com/300x200/FFD700/000000?text=Capa+Receitas" alt="Capa do Livro de Receitas" class="card-image">
+        <div class="card-content">
+            <h2 class="card-title">Meu Livro de Receitas</h2>
+            <p class="card-description">Receitas de família, pratos testados e aprovados para todas as ocasiões.</p>
+            <a href="URL_DO_SEU_ARQUIVO_DE_RECEITAS_AQUI.pdf" class="card-button" download>Baixar Livro</a>
+        </div>
+    </div>
+
+    </body>
+</html>
