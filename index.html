@@ -1,572 +1,6 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catálogo Autônomo Real (Aplicação Electron - Consolidado)</title>
-    <style>
-        /* Variáveis de Cores */
-        :root {
-            --bg-dark: #0f0f0f;
-            --card-bg: #1a0a0a;
-            --card-border: #330000;
-            --text-light: #e0e0e0;
-            --text-accent: #ff4d4d; /* Vermelho vibrante */
-            --button-bg: #cc0000;
-            --button-hover-bg: #ff0000;
-            --shadow-color: rgba(0, 0, 0, 0.7);
-            --hover-glow: 0 0 25px rgba(255, 0, 0, 0.7), 0 0 10px rgba(255, 0, 0, 0.5);
-            --tab-active-bg: #ff4d4d;
-            --tab-hover-bg: #aa0000;
-            --loading-bar-color: #00ff00; /* Verde para a barra de loading */
-        }
-
-        /* Estilos Globais e Fundo */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-light);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            overflow-x: hidden;
-            background-image: radial-gradient(circle at center, rgba(255, 0, 0, 0.1) 0%, transparent 70%);
-        }
-
-        /* Contêiner Principal */
-        #app-container {
-            width: 100%;
-            max-width: 1200px;
-            margin-top: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        /* Cabeçalho */
-        h1 {
-            color: var(--text-accent);
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.8em;
-            text-shadow: 0 0 10px var(--text-accent);
-        }
-
-        /* Barra de Busca */
-        #search-bar {
-            width: 100%;
-            padding: 15px 20px;
-            border: 1px solid var(--card-border);
-            border-radius: 10px;
-            background-color: var(--card-bg);
-            color: var(--text-light);
-            font-size: 1.1em;
-            margin-bottom: 20px;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-        }
-        #search-bar::placeholder {
-            color: #888;
-        }
-        #search-bar:focus {
-            outline: none;
-            border-color: var(--text-accent);
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
-        }
-
-        /* Abas de Categoria */
-        #category-tabs {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 30px;
-            padding: 10px 0;
-            border-bottom: 2px solid var(--card-border);
-        }
-
-        .tab-button {
-            background-color: var(--card-bg);
-            color: var(--text-light);
-            padding: 12px 25px;
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1.05em;
-            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .tab-button:hover {
-            background-color: var(--tab-hover-bg);
-            border-color: var(--tab-hover-bg);
-            color: white;
-        }
-        .tab-button.active {
-            background-color: var(--tab-active-bg);
-            border-color: var(--tab-active-bg);
-            color: white;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
-        }
-
-        /* Sub-abas para Assets */
-        #assets-subtabs {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            margin-top: -15px;
-            margin-bottom: 20px;
-            padding: 5px 0;
-            border-top: 1px dashed var(--card-border);
-            padding-top: 15px;
-            opacity: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: opacity 0.4s ease-out, max-height 0.4s ease-out;
-        }
-        #assets-subtabs.visible {
-            opacity: 1;
-            max-height: 50px;
-        }
-        .sub-tab-button {
-            background-color: #050505; /* Cor mais escura para sub-aba */
-            color: var(--text-light);
-            padding: 8px 15px;
-            border: 1px dashed #660000;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-        .sub-tab-button:hover {
-            background-color: #440000;
-        }
-        .sub-tab-button.active {
-            background-color: #ff4d4d;
-            border-color: #ff4d4d;
-            color: white;
-        }
-
-        /* Área de Arrastar/Soltar e Adicionar Novo */
-        #drop-area {
-            background-color: var(--card-bg);
-            border: 2px dashed var(--card-border);
-            border-radius: 12px;
-            color: var(--text-light);
-            padding: 30px;
-            text-align: center;
-            font-size: 1.2em;
-            cursor: pointer;
-            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
-            margin-bottom: 30px;
-            position: relative; /* Para o loader */
-            min-height: 100px; /* Garante que a área não suma */
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #drop-area.highlight {
-            background-color: #2a0000;
-            border-color: var(--text-accent);
-            box-shadow: 0 0 25px rgba(255, 0, 0, 0.5);
-        }
-
-        #drop-area p {
-            margin: 0;
-            padding: 10px 0;
-            color: var(--text-accent);
-        }
-        #drop-area small {
-            font-size: 0.8em;
-            color: #aaa;
-        }
-
-        /* Loader de Processamento (simulado) */
-        #loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
-            z-index: 10;
-        }
-        #loading-overlay.visible {
-            opacity: 1;
-            visibility: visible;
-        }
-        .loading-bar-container {
-            width: 80%;
-            height: 20px;
-            background-color: #333;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-        }
-        .loading-bar {
-            height: 100%;
-            width: 0%;
-            background-color: var(--loading-bar-color);
-            border-radius: 10px;
-            transition: width 0.3s ease-in-out;
-        }
-        #loading-status {
-            color: var(--text-accent);
-            font-size: 1.1em;
-            text-shadow: 0 0 5px rgba(255,0,0,0.5);
-        }
-
-        /* Botão para Adicionar Manualmente */
-        #add-new-card-button {
-            background-color: var(--card-bg);
-            border: 2px dashed var(--card-border);
-            border-radius: 12px;
-            color: var(--text-accent);
-            padding: 15px 30px;
-            font-size: 1.1em;
-            cursor: pointer;
-            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
-            margin-top: -15px; /* Ajuste para ficar melhor com o drop-area */
-            align-self: center;
-        }
-        #add-new-card-button:hover {
-            background-color: #2a0000;
-            border-color: var(--text-accent);
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
-        }
-
-        /* Formulário de Adição/Edição de Card (Modal) */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100; /* Mais alto que o loader */
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background-color: var(--card-bg);
-            margin: auto;
-            padding: 30px;
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .close-button {
-            color: var(--text-accent);
-            font-size: 28px;
-            font-weight: bold;
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            cursor: pointer;
-            transition: color 0.3s ease;
-        }
-        .close-button:hover,
-        .close-button:focus {
-            color: white;
-        }
-
-        .modal-content label {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--text-accent);
-            font-size: 1.1em;
-        }
-        .modal-content input[type="text"],
-        .modal-content textarea,
-        .modal-content select {
-            width: calc(100% - 20px);
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid var(--card-border);
-            border-radius: 6px;
-            background-color: #050505;
-            color: var(--text-light);
-            font-size: 1em;
-            transition: border-color 0.3s ease;
-        }
-        .modal-content input[type="text"]:focus,
-        .modal-content textarea:focus,
-        .modal-content select:focus {
-            outline: none;
-            border-color: var(--text-accent);
-            box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
-        }
-        .modal-content button {
-            background-color: var(--button-bg);
-            color: white;
-            padding: 12px 25px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1.1em;
-            transition: background-color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 0 10px rgba(255, 0, 0, 0.4);
-            align-self: flex-end;
-        }
-        .modal-content button:hover {
-            background-color: var(--button-hover-bg);
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
-        }
-        #modal-image-preview {
-            max-width: 100%;
-            max-height: 150px;
-            object-fit: contain;
-            display: block;
-            margin: 10px auto 20px auto;
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-        }
-
-        /* Contêiner dos Cards */
-        #cards-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 30px;
-            justify-content: center;
-            min-height: 200px;
-        }
-
-        /* Estilos dos Cards */
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 8px 16px var(--shadow-color);
-            width: 300px;
-            overflow: hidden;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid var(--card-border);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            cursor: grab;
-        }
-        .card:hover {
-            transform: translateY(-8px);
-            box-shadow: var(--hover-glow);
-        }
-
-        .card-image-wrapper {
-            width: 100%;
-            height: 200px;
-            overflow: hidden;
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
-            position: relative;
-        }
-
-        .card-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.3s ease;
-        }
-        .card:hover .card-image {
-             transform: scale(1.05);
-        }
-
-        .card-content {
-            padding: 20px;
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .card-title {
-            font-size: 1.6em;
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: var(--text-accent);
-            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
-            cursor: pointer; /* Indica que é clicável para download */
-        }
-        .card-title:hover {
-            text-decoration: underline;
-        }
-
-        .card-description {
-            font-size: 0.95em;
-            line-height: 1.5;
-            color: var(--text-light);
-            margin-bottom: 15px;
-        }
-
-        .card-category {
-            font-size: 0.8em;
-            color: #999;
-            text-align: right;
-            margin-top: 10px;
-        }
-        
-        /* Botões de Ação do Card */
-        .card-actions {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            gap: 5px;
-        }
-        .card-action-button {
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.1em;
-            cursor: pointer;
-            transition: background 0.3s ease, transform 0.3s ease;
-            box-shadow: 0 0 5px rgba(0,0,0,0.5);
-        }
-        .card-action-button:hover {
-            background: var(--button-hover-bg);
-            transform: scale(1.1);
-        }
-
-
-        /* Responsividade */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            h1 {
-                font-size: 2em;
-            }
-            .tab-button {
-                padding: 8px 15px;
-                font-size: 0.9em;
-            }
-            .sub-tab-button {
-                padding: 6px 10px;
-                font-size: 0.8em;
-            }
-            .card {
-                width: 100%;
-            }
-            #drop-area, #add-new-card-button {
-                padding: 20px;
-                font-size: 1em;
-            }
-            .modal-content {
-                padding: 20px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div id="app-container">
-        <h1>Catálogo Autônomo Real (Estudo de Aplicação Electron)</h1>
-
-        <input type="text" id="search-bar" placeholder="Buscar por nome ou descrição...">
-
-        <div id="category-tabs">
-            <button class="tab-button active" data-category="all">Todos</button>
-            <button class="tab-button" data-category="Models">Models</button>
-            <button class="tab-button" data-category="Worlds">Worlds</button>
-            <button class="tab-button" data-category="Props">Props</button>
-            <button class="tab-button" data-category="Outfits">Outfits</button>
-            <button class="tab-button" data-category="Assets">Assets</button>
-        </div>
-
-        <div id="assets-subtabs">
-            <button class="sub-tab-button" data-category="Avatar Assets">Avatar Assets</button>
-            <button class="sub-tab-button" data-category="World Assets">World Assets</button>
-        </div>
-
-        <div id="drop-area">
-            <p>Arraste e solte arquivos aqui para o Bibliotecário Autônomo processar...</p>
-            <small>(Agora, os arquivos SÃO lidos e processados localmente!)</small>
-            <div id="loading-overlay">
-                <div class="loading-bar-container">
-                    <div class="loading-bar"></div>
-                </div>
-                <p id="loading-status">Iniciando processamento...</p>
-            </div>
-        </div>
-
-        <button id="add-new-card-button">
-            Adicionar Item Manualmente (Ou Selecionar Arquivo)
-        </button>
-
-        <div id="cards-container">
-            </div>
-    </div>
-
-    <div id="card-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2>Detalhes do Item (Bibliotecário Sugere)</h2>
-
-            <label for="modal-image-url">URL da Imagem de Capa:</label>
-            <input type="text" id="modal-image-url" placeholder="URL da imagem (pode ser inferida)">
-            <img id="modal-image-preview" src="" alt="Pré-visualização da Imagem" style="display: none;">
-            
-            <label for="modal-title">Título:</label>
-            <input type="text" id="modal-title" placeholder="Nome do arquivo ou item (inferido)">
-
-            <label for="modal-description">Descrição:</label>
-            <textarea id="modal-description" rows="4" placeholder="Detalhes do item (inferido ou digite)"></textarea>
-
-            <label for="modal-download-url">Caminho/URL do Arquivo para Download:</label>
-            <input type="text" id="modal-download-url" placeholder="Caminho local ou URL do arquivo" readonly>
-            <small style="color: #aaa;">(Se for um arquivo arrastado, este será o caminho local.)</small>
-
-            <label for="modal-category">Categoria Inferida/Sugeria:</label>
-            <select id="modal-category">
-                <option value="Models">Models</option>
-                <option value="Worlds">Worlds</option>
-                <option value="Props">Props</option>
-                <option value="Outfits">Outfits</option>
-                <option value="Avatar Assets">Avatar Assets</option>
-                <option value="World Assets">World Assets</option>
-                <option value="Image Asset">Image Asset</option>
-                <option value="Uncategorized">Não Categorizado</option>
-            </select>
-
-            <button id="save-card-button">Salvar Item no Catálogo</button>
-        </div>
-    </div>
-
-    <script>
+<script>
         // renderer.js - A Lógica da Interface (AGORA EMBUTIDA NO HTML)
-        // Agora acessamos as funções Node.js via 'window.electronAPI' expostas no preload.js
-
+        // Atualizado para Batch e Progresso
         let cards = [];
         let currentEditingCardId = null; 
 
@@ -590,7 +24,6 @@
         const modalDownloadUrlInput = document.getElementById('modal-download-url');
         const modalCategorySelect = document.getElementById('modal-category');
 
-
         // --- Funções de Inicialização e Carregamento ---
 
         function loadCards() {
@@ -600,7 +33,6 @@
             } else {
                 // Dados de exemplo para estudo se não houver nada salvo
                 cards = [
-                    // Agora os URLs de download podem ser caminhos de arquivo locais ou URLs http/https
                     { id: 'c1', imageUrl: 'https://via.placeholder.com/300x200/cc0000/ffffff?text=Cubo+Animado', title: 'Cubo Animado.zip', description: 'Um modelo 3D de um cubo com animações básicas. Perfeito para testes de física.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Models' },
                     { id: 'c2', imageUrl: 'https://via.placeholder.com/300x200/aa0000/ffffff?text=Floresta+Mundo', title: 'Floresta Magica.vrml', description: 'Cenário de floresta densa com elementos interativos e som ambiente.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Worlds' },
                     { id: 'c3', imageUrl: 'https://via.placeholder.com/300x200/880000/ffffff?text=Espada+Prop', title: 'Espada Lendaria.fbx', description: 'Um prop de espada detalhado com texturas em alta resolução.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Props' },
@@ -745,21 +177,21 @@
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
+        // Antiga função processFileViaElectron (agora vamos usar a de batch)
+        /*
         async function processFileViaElectron(filePath) {
             loadingOverlay.classList.add('visible');
             
             await startProcessingAnimation('Iniciando comunicação com o processo principal...', 5);
             
-            // HINT: Aqui, o frontend (renderer.js) invoca a função 'processFile' no preload.js,
-            // que por sua vez se comunica com o main.js. É assim que o poder do Node.js é usado.
             const result = await window.electronAPI.processFile(filePath);
 
             if (result.success) {
                 await startProcessingAnimation('Dados recebidos. Preparando para catalogar...', 100);
-                await new Promise(resolve => setTimeout(resolve, 500)); // Pequena pausa final
+                await new Promise(resolve => setTimeout(resolve, 500));
                 loadingOverlay.classList.remove('visible');
 
-                openModal(result.data); // Abre o modal com os dados reais inferidos
+                openModal(result.data);
             } else {
                 await startProcessingAnimation(`Erro: ${result.error}`, 0);
                 await new Promise(resolve => setTimeout(resolve, 2000));
@@ -767,16 +199,77 @@
                 alert(`Falha ao processar arquivo: ${result.error}`);
             }
         }
+        */
+
+        async function processFilesBatchViaElectron(filePaths) {
+            if (!filePaths || filePaths.length === 0) {
+                alert('Nenhum arquivo selecionado para processar.');
+                return;
+            }
+
+            loadingOverlay.classList.add('visible');
+            loadingStatus.textContent = `Preparando para processar ${filePaths.length} arquivos...`;
+            loadingBar.style.width = '0%';
+
+            // Inicia o processamento no processo principal
+            await window.electronAPI.processFilesBatch(filePaths);
+        }
+
+        // --- Listeners de Progresso do Electron ---
+        window.electronAPI.onProcessingFileProgress((update) => {
+            // Este callback é chamado para cada arquivo individualmente
+            loadingStatus.textContent = `Processando arquivo ${update.fileIndex + 1} de ${update.totalFiles}: ${update.filePath.split(/[\\/]/).pop()}... (${update.status})`;
+            if (update.status === 'failed') {
+                console.error(`Falha no arquivo ${update.filePath}: ${update.error}`);
+            }
+            // A barra de progresso geral será atualizada por 'onProcessingOverallProgress'
+        });
+
+        window.electronAPI.onProcessingOverallProgress((progress) => {
+            // Este callback é chamado para o progresso geral do lote
+            const overallProgress = (progress.completed / progress.total) * 100;
+            loadingBar.style.width = `${overallProgress}%`;
+            loadingStatus.textContent = `Processando lote: ${progress.completed} de ${progress.total} arquivos...`;
+        });
+
+        window.electronAPI.onProcessingBatchComplete((results) => {
+            console.log('Lote de processamento concluído!', results);
+            loadingStatus.textContent = `Processamento de lote concluído! ${results.length} arquivos processados.`;
+            loadingBar.style.width = '100%';
+
+            // Adiciona todos os resultados bem-sucedidos aos cards
+            results.forEach(itemResult => {
+                if (itemResult.success) {
+                    const newCard = {
+                        id: 'c' + Date.now() + Math.random().toString(36).substring(2, 9), // ID mais único
+                        imageUrl: itemResult.data.imageUrl,
+                        title: itemResult.data.title,
+                        description: itemResult.data.description,
+                        downloadUrl: itemResult.data.downloadUrl,
+                        category: itemResult.data.category
+                    };
+                    cards.push(newCard);
+                } else {
+                    console.warn(`Arquivo falhou no processamento: ${itemResult.error}`);
+                }
+            });
+            saveCards();
+            renderCards(); // Renderiza todos os novos cards
+
+            setTimeout(() => {
+                loadingOverlay.classList.remove('visible');
+                loadingStatus.textContent = 'Iniciando processamento...'; // Reset para a próxima vez
+            }, 1000); // Esconde a sobreposição após um pequeno atraso
+        });
 
 
         // --- Funções de Eventos ---
 
-        // Evento de clique para adicionar novo card manualmente ou selecionar arquivo
+        // Evento de clique para adicionar novo card manualmente ou selecionar arquivo(s)
         addNewCardButton.addEventListener('click', async () => {
-            // Agora o botão pode tanto abrir o modal vazio quanto a caixa de diálogo de arquivo
-            const selectedFilePath = await window.electronAPI.openFileDialog();
-            if (selectedFilePath) {
-                await processFileViaElectron(selectedFilePath);
+            const selectedFilePaths = await window.electronAPI.openFileDialog(); // Retorna array
+            if (selectedFilePaths && selectedFilePaths.length > 0) {
+                await processFilesBatchViaElectron(selectedFilePaths);
             } else {
                 openModal(); // Abre o modal vazio se nenhum arquivo for selecionado
             }
@@ -829,11 +322,9 @@
                 const cardId = cardElement.dataset.id;
                 const card = cards.find(c => c.id === cardId);
                 if (card && card.downloadUrl) {
-                    // HINT: Se o downloadUrl for um caminho de arquivo local (file://), o Electron pode abri-lo diretamente.
-                    // Para downloads HTTP/HTTPS, funcionará como um navegador normal.
                     const link = document.createElement('a');
                     link.href = card.downloadUrl;
-                    link.download = card.title; // Sugere o nome do arquivo para download
+                    link.download = card.title;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -978,7 +469,7 @@
             }
         }
         
-        // --- Eventos da Área de Arrastar/Soltar (AGORA REALMENTE LÊ O ARQUIVO LOCAL) ---
+        // --- Eventos da Área de Arrastar/Soltar (AGORA ENVIA MÚLTIPLOS ARQUIVOS PARA O WORKER) ---
         dropArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropArea.classList.add('highlight');
@@ -994,10 +485,8 @@
 
             const files = e.dataTransfer.files;
             if (files.length > 0) {
-                const file = files[0];
-                // HINT: Passamos o caminho ABSOLUTO do arquivo para o processo principal.
-                // É o main.js (ambiente Node.js) que terá permissão para lê-lo.
-                await processFileViaElectron(file.path);
+                const filePaths = Array.from(files).map(file => file.path); // Pega o caminho de TODOS os arquivos
+                await processFilesBatchViaElectron(filePaths);
             }
         });
 
@@ -1005,5 +494,3 @@
         // --- Inicialização ---
         loadCards();
     </script>
-</body>
-</html>
