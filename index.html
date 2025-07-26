@@ -1174,6 +1174,7 @@
         function showErrorMessage(message, duration = 5000) {
             errorMessagesDiv.textContent = 'Erro: ' + message;
             errorMessagesDiv.classList.add('show');
+            window.electronAPI.log(message, 'error'); // Adiciona esta linha
             setTimeout(() => {
                 errorMessagesDiv.classList.remove('show');
             }, duration);
@@ -1182,7 +1183,8 @@
         // Captura erros de JavaScript não tratados no processo de renderização
         window.onerror = function(message, source, lineno, colno, error) {
             console.error('Erro JS (window.onerror):', message, source, lineno, colno, error);
-            showErrorMessage(`Erro na interface: ${message.substring(0, 100)}...`);
+            showErrorMessage(`Erro na interface: ${message.substring(0, Math.min(message.length, 100))}...`);
+            window.electronAPI.log(`JS Error: ${message} at ${source}:${lineno}`, 'error'); // Adiciona esta linha
             return true; // Previne o comportamento padrão do navegador
         };
 
@@ -1190,6 +1192,7 @@
         window.addEventListener('unhandledrejection', (event) => {
             console.error('Promessa Rejeitada (unhandledrejection):', event.reason);
             showErrorMessage(`Um problema interno ocorreu. ${event.reason.message || event.reason}`);
+            window.electronAPI.log(`Unhandled Rejection: ${event.reason.message || event.reason}`, 'error'); // Adiciona esta linha
         });
 
 
@@ -1562,7 +1565,7 @@
                     renderCards();
                 }
             }
-            // Baixar ao clicar no título (texto "embed")
+            // Abrir arquivo/pasta ao clicar no título (texto "embed")
             else if (event.target.classList.contains('card-title')) {
                 const cardElement = event.target.closest('.card');
                 const cardId = cardElement.dataset.id;
@@ -1571,13 +1574,19 @@
                     // Para URLs de arquivo local ('file://')
                     if (card.downloadUrl.startsWith('file://')) {
                         const filePath = card.downloadUrl.substring(7); // Remove 'file://'
-                        // Em uma aplicação Electron, você pode abrir o arquivo diretamente
-                        // ou a pasta que o contém. Para download direto, é mais complexo
-                        // para arquivos locais, geralmente você apenas abriria.
-                        // Para simplificar, vou usar um alert. Em um app real, usaria shell.openPath.
-                        alert(`Tentando abrir o arquivo local:\n${filePath}\n\n(Em um app Electron real, isso abriria o arquivo/pasta).`);
-                        // Exemplo para abrir a pasta:
-                        // window.electronAPI.openFileInFolder(filePath); // Exigiria um novo IPC no preload/main
+                        window.electronAPI.openFileOrFolder(filePath)
+                            .then(success => {
+                                if (success) {
+                                    window.electronAPI.log(`Arquivo ou pasta aberta: ${filePath}`, 'info');
+                                } else {
+                                    showErrorMessage(`Não foi possível abrir: ${filePath}. O arquivo pode não existir ou permissões negadas.`, 8000);
+                                    window.electronAPI.log(`Falha ao abrir arquivo/pasta: ${filePath}`, 'error');
+                                }
+                            })
+                            .catch(err => {
+                                showErrorMessage(`Erro ao tentar abrir: ${err.message}`, 8000);
+                                window.electronAPI.log(`Erro ao invocar openFileOrFolder para ${filePath}: ${err.message}`, 'error');
+                            });
                     } else {
                         // Para URLs web (ainda mantém o comportamento de link)
                         const link = document.createElement('a');
@@ -1586,10 +1595,10 @@
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        alert(`Tentando baixar: "${card.title}" de ${card.downloadUrl}`);
+                        window.electronAPI.log(`Tentando baixar: "${card.title}" de ${card.downloadUrl}`, 'info');
                     }
                 } else {
-                    alert('URL de download não disponível para este item.');
+                    showErrorMessage('URL de download não disponível para este item.', 5000);
                 }
             }
         });
@@ -1724,7 +1733,7 @@
                     saveCards();
                     initializeFuse(); // Re-inicializa Fuse.js
                     renderCards();
-                    alert(`Item "${cards[cardIndex].title}" realocado para "${newCategory}"`);
+                    window.electronAPI.log(`Item "${cards[cardIndex].title}" realocado para "${newCategory}"`, 'info');
                 }
             }
         }
