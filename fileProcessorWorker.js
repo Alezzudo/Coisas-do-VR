@@ -1,19 +1,27 @@
-// fileProcessorWorker.js - Executa em uma thread separada para processamento pesado
+// fileProcessorWorker.js - Executa em uma thread separada para processamento pesado (Com Tratamento de Erros)
 const { parentPort, workerData } = require('worker_threads');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs'); // Para operações de arquivo, se houver
 
 // Função de processamento de conteúdo (AGORA DENTRO DO WORKER)
 async function processFileContent(filePath, fileIndex, totalFiles) {
     try {
+        // Envia uma mensagem de progresso "iniciado"
+        parentPort.postMessage({
+            type: 'progress',
+            fileIndex,
+            totalFiles,
+            filePath,
+            status: 'processing'
+        });
+
         const fileName = path.basename(filePath);
         const fileExtension = path.extname(filePath).toLowerCase();
 
         // SIMULAÇÃO de processamento INTENSO (em um cenário real, aqui você usaria:
         // - bibliotecas de descompactação (ex: 'adm-zip', 'decompress')
         // - bibliotecas de análise de metadados de arquivos (ex: 'exiftool.js', 'image-size')
-        // - lógica para interagir com APIs externas (Google, Booth, VRmodels) - esta parte ainda exigiria requisições web.
-        // A simulação de um atraso representa o trabalho da CPU.
+        // - lógica para interagir com APIs externas (Google, Booth, VRmodels)
         const processingTime = 500 + Math.random() * 1500; // 0.5 a 2 segundos por arquivo
         await new Promise(resolve => setTimeout(resolve, processingTime));
 
@@ -21,9 +29,9 @@ async function processFileContent(filePath, fileIndex, totalFiles) {
         let inferredDescription = `Item processado localmente: ${fileName}. Tipo: ${fileExtension}.`;
         let inferredImageUrl = 'https://via.placeholder.com/300x200/cc0000/ffffff?text=Item+Local';
         let inferredCategory = 'Uncategorized';
-        let downloadUrl = `file://${filePath}`; // URL direta para o arquivo local!
+        let downloadUrl = `file://${filePath}`;
 
-        // Lógica de inferência (a mesma do main.js, agora aqui para simular a análise)
+        // Lógica de inferência
         if (fileName.toLowerCase().includes('model') || ['.gltf', '.glb', '.fbx', '.obj', '.blend'].includes(fileExtension)) {
             inferredCategory = 'Models';
             inferredDescription = `Modelo 3D (${fileExtension}): ${inferredTitle}.`;
@@ -51,7 +59,7 @@ async function processFileContent(filePath, fileIndex, totalFiles) {
         } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(fileExtension)) {
             inferredCategory = 'Image Asset';
             inferredDescription = `Imagem: ${inferredTitle}.`;
-            inferredImageUrl = downloadUrl;
+            inferredImageUrl = downloadUrl; // Para imagens, a própria imagem pode ser a capa
         }
 
         // Reporta o progresso de volta para o main thread
@@ -82,6 +90,7 @@ async function processFileContent(filePath, fileIndex, totalFiles) {
         };
 
     } catch (error) {
+        console.error(`[Worker] Erro ao processar arquivo ${filePath}:`, error);
         // Reporta erro de volta para o main thread
         parentPort.postMessage({
             type: 'progress',
