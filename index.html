@@ -630,17 +630,19 @@
                 <button class="tab-button" data-category="Props">Props</button>
                 <button class="tab-button" data-category="Outfits">Outfits</button>
                 <button class="tab-button" data-category="Assets">Assets</button>
+                <button class="tab-button" data-category="Documents">Documentos</button>
             </div>
             <div id="assets-subtabs">
                 <button class="sub-tab-button" data-category="Avatar Assets">Avatares</button>
                 <button class="sub-tab-button" data-category="World Assets">Mundos</button>
                 <button class="sub-tab-button" data-category="Image Asset">Imagens</button>
+                <button class="sub-tab-button" data-category="UnityPackage">UnityPackage</button>
             </div>
         </div>
 
         <div id="drop-area">
             <p>Arraste e Solte Arquivos Aqui para Processar</p>
-            <span>(Compatível com .zip, .fbx, .gltf, .obj, .blend, .unitypackage e mais!)</span>
+            <span>(Compatível com .zip, .fbx, .gltf, .obj, .blend, .unitypackage, .pdf e mais!)</span>
         </div>
 
         <div id="cards-container">
@@ -675,6 +677,8 @@
                 <option value="Avatar Assets">Avatar Assets</option>
                 <option value="World Assets">World Assets</option>
                 <option value="Image Asset">Image Asset</option>
+                <option value="UnityPackage">UnityPackage</option>
+                <option value="Documents">Documentos</option>
                 <option value="Uncategorized">Não Categorizado</option>
             </select>
 
@@ -1275,7 +1279,7 @@
                 let matchesCategory = true;
                 if (activeCategory !== 'all') {
                     if (activeCategory === 'Assets') {
-                        matchesCategory = (card.category === 'Avatar Assets' || card.category === 'World Assets' || card.category === 'Image Asset'); // Inclui Image Asset aqui
+                        matchesCategory = (card.category === 'Avatar Assets' || card.category === 'World Assets' || card.category === 'Image Asset' || card.category === 'UnityPackage'); // Inclui Image Asset e UnityPackage aqui
                         if (activeSubCategory) {
                             matchesCategory = (card.category === activeSubCategory);
                         }
@@ -1334,6 +1338,7 @@
             descriptionRequestSection.style.display = 'none'; // Oculta a seção de descrição manual
             saveCardButton.style.display = 'block'; // Mostra o botão de salvar por padrão
 
+            // Popula o modal com dados existentes se estiver editando ou confirmando um item novo
             if (cardData) {
                 modalImageUrlInput.value = cardData.imageUrl;
                 modalImagePreview.src = cardData.imageUrl;
@@ -1341,7 +1346,9 @@
                 modalTitleInput.value = cardData.title;
                 modalDescriptionInput.value = cardData.description;
                 modalDownloadUrlInput.value = cardData.downloadUrl;
-                modalCategorySelect.value = cardData.category;
+                // Garante que a categoria inferida esteja na lista ou defina "Uncategorized"
+                const optionExists = Array.from(modalCategorySelect.options).some(option => option.value === cardData.category);
+                modalCategorySelect.value = optionExists ? cardData.category : 'Uncategorized';
             }
 
             if (isNew) {
@@ -1439,6 +1446,16 @@
 
         // --- Listeners de Progresso do Electron ---
         window.electronAPI.onProcessingFileProgress((update) => {
+            // Se houver um item "em progresso" com dados, e o modal estiver aberto em modo de novo processamento
+            // Atualiza os campos do modal com os dados parciais.
+            if (update.status === 'completed' && isNewCardBeingProcessed && !currentEditingCardId) {
+                 // Apenas para o primeiro arquivo de um lote de 1 (ou o primeiro de um lote maior se quisermos preview)
+                // Se quisermos preview em tempo real de múltiplos, teríamos que adaptar o modal para lista de preview.
+                // Por agora, o modal só exibe um por vez para confirmação.
+                if (update.fileIndex === 0 && update.totalFiles === 1) { 
+                    openModal(update.data, true); // Re-abre/atualiza o modal com os dados inferidos
+                }
+            }
             loadingStatus.textContent = `Processando arquivo ${update.fileIndex + 1} de ${update.totalFiles}: ${update.filePath.split(/[\\/]/).pop()}... (${update.status})`;
             if (update.status === 'failed') {
                 console.error(`Falha no arquivo ${update.filePath}: ${update.error}`);
@@ -1460,9 +1477,11 @@
             // Se apenas um arquivo foi processado com sucesso, abra o modal de confirmação
             const successfulResults = results.filter(itemResult => itemResult.success);
             
-            if (successfulResults.length === 1 && results.length === 1) {
-                // Se um único arquivo foi processado com sucesso, abra o modal para ele
-                openModal(successfulResults[0].data, true); // Abre o modal em modo de confirmação para o único item
+            if (successfulResults.length === 1 && results.length === 1 && isNewCardBeingProcessed) {
+                // Se um único arquivo foi processado com sucesso e estamos no fluxo de novo card,
+                // já abrimos o modal via onProcessingFileProgress.
+                // Apenas nos certificamos que ele está visível e correto.
+                openModal(successfulResults[0].data, true); // Re-confirma o estado do modal
             } else {
                 // Para múltiplos arquivos ou zero/múltiplas falhas, adiciona diretamente e exibe uma mensagem sumária
                 let addedCount = 0;
@@ -1512,6 +1531,8 @@
             try {
                 const selectedFilePaths = await window.electronAPI.openFileDialog();
                 if (selectedFilePaths && selectedFilePaths.length > 0) {
+                    // Define a flag para indicar que um novo card está sendo processado via seleção de arquivo
+                    isNewCardBeingProcessed = true; 
                     await processFilesBatchViaElectron(selectedFilePaths);
                 } else {
                     // Se nenhum arquivo foi selecionado no diálogo, abre o modal vazio para criação manual
@@ -1725,7 +1746,7 @@
 
             if (draggedCard) {
                 const cardId = draggedCard.dataset.id;
-                const newCategory = this.dataset.category;
+                let newCategory = this.dataset.category;
 
                 const cardIndex = cards.findIndex(c => c.id === cardId);
                 if (cardIndex !== -1) {
@@ -1755,6 +1776,7 @@
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const filePaths = Array.from(files).map(file => file.path); // Pega o caminho de TODOS os arquivos
+                isNewCardBeingProcessed = true; // Define a flag para o fluxo de novo card
                 await processFilesBatchViaElectron(filePaths);
             }
         });
