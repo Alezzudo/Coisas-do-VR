@@ -6,13 +6,13 @@
   "scripts": {
     "start": "electron .",
     "start:dev": "npm run clean && electron . --inspect=5858 --remote-debugging-port=9222 --enable-logging",
-    "watch": "nodemon --exec 'electron .' --watch main.js --watch preload.js --watch index.html --watch fileProcessorWorker.js",
+    "watch": "nodemon --exec electron . --watch main.js --watch preload.js --watch index.html --watch fileProcessorWorker.js",
     "clean": "rimraf dist out",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "echo \"No test specified yet, but here's the script!\" && exit 0",
     "pack": "electron-builder --dir",
-    "dist": "npm run build",
+    "dist": "electron-builder",
     "build": "npm run build:win && npm run build:mac && npm run build:linux",
     "build:win": "electron-builder --win --x64",
     "build:mac": "electron-builder --mac",
@@ -48,18 +48,15 @@
   "build": {
     "appId": "com.seu.catalogovr",
     "productName": "CatalogoAutonomo",
-    "copyright": "Copyright © 2025 ${author}",
+    "copyright": "Copyright © 2025 Seu Nome",
     "directories": {
       "output": "dist"
     },
     "files": [
-      "main.js",
-      "preload.js",
+      "*.js",
       "index.html",
       "package.json",
-      "node_modules",
-      "icon.png",
-      "fileProcessorWorker.js"
+      "icon.png"
     ],
     "win": {
       "target": "nsis",
@@ -71,11 +68,8 @@
     },
     "linux": {
       "target": "AppImage",
-      "category": "Utility",
+      "category": "Utilities",
       "icon": "icon.png"
-    },
-    "extraMetadata": {
-      "main": "main.js"
     }
   }
 }
