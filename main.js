@@ -1,49 +1,132 @@
-// main.js - O Coração Autônomo com Workers e Concorrência Otimizada (Com Tratamento de Erros)
+// main.js
+
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { Worker } = require('worker_threads');
-const fs = require('fs'); // Para logging de erros, se necessário
+const fs = require('fs');
+const AdmZip = require('adm-zip'); // Para ler arquivos .zip
 
-// --- Tratamento de Erros Globais no Processo Principal ---
-process.on('uncaughtException', (error) => {
-    console.error('[Main Process - Uncaught Exception]', error);
-    // Em um ambiente de produção, você pode logar isso em um arquivo ou serviço de monitoramento.
-    // Para o usuário, pode exibir um dialog simples.
-    dialog.showErrorBox('Erro Inesperado no Sistema', 'Um erro grave ocorreu e a aplicação pode precisar ser reiniciada. Detalhes: ' + error.message);
-    app.quit(); // Pode ser agressivo, mas evita estados corrompidos.
-});
+// Função para gerar um ID único simples
+function generateUniqueId() {
+    return 'c' + Date.now() + Math.random().toString(36).substring(2, 9);
+}
 
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('[Main Process - Unhandled Rejection]', reason);
-    // Log do erro, pode ser útil para depuração de promessas não tratadas.
-    // Semelhante ao uncaughtException, mas para promessas.
-});
+// Função para inferir dados de um arquivo
+async function inferFileData(filePath) {
+    const fileName = path.basename(filePath);
+    const fileExtension = path.extname(filePath).toLowerCase();
+    const title = fileName.replace(fileExtension, '').replace(/_/g, ' ').trim(); // Título básico do nome do arquivo
+    let description = "Descrição gerada automaticamente pelo Bibliotecário Autônomo.";
+    let category = "Uncategorized";
+    let imageUrl = `https://via.placeholder.com/300x200/440000/FFFFFF?text=${encodeURIComponent(title.substring(0, Math.min(title.length, 15)))}`; // Imagem placeholder
 
-// Configuração de concorrência (quantos arquivos processar em paralelo)
-const MAX_CONCURRENT_WORKERS = require('os').cpus().length || 4; // Usa o número de CPUs, ou 4 como fallback
-let activeWorkers = 0;
-let fileQueue = [];
-let processingResults = [];
-let totalFilesToProcess = 0;
+    // Tentar encontrar uma imagem de pré-visualização para unitypackage e zip
+    if (fileExtension === '.unitypackage' || fileExtension === '.zip') {
+        try {
+            const zip = new AdmZip(filePath);
+            const zipEntries = zip.getEntries(); // get all entries from the zip
+
+            // Procurar por imagens comuns (preview, thumbnail) dentro do zip
+            const imageEntry = zipEntries.find(entry => {
+                const entryNameLower = entry.entryName.toLowerCase();
+                return (entryNameLower.includes('preview') || entryNameLower.includes('thumbnail')) &&
+                       (entryNameLower.endsWith('.png') || entryNameLower.endsWith('.jpg') || entryNameLower.endsWith('.jpeg'));
+            });
+
+            if (imageEntry) {
+                // Extrair a imagem para um local temporário e usar a URL local
+                const tempDir = app.getPath('temp');
+                const tempImagePath = path.join(tempDir, generateUniqueId() + path.extname(imageEntry.entryName));
+                fs.writeFileSync(tempImagePath, imageEntry.getData());
+                imageUrl = `file://${tempImagePath}`;
+            }
+
+            // Tentar inferir descrição de README.txt ou similar
+            const readmeEntry = zipEntries.find(entry => entry.entryName.toLowerCase().includes('readme.txt') || entry.entryName.toLowerCase().includes('description.txt'));
+            if (readmeEntry) {
+                description = readmeEntry.getData().toString('utf8').trim().substring(0, 500); // Limita a 500 caracteres
+                if (description.length === 500) description += '...';
+            }
+
+        } catch (zipError) {
+            console.warn(`Não foi possível ler o conteúdo do ZIP/UnityPackage ${fileName}: ${zipError.message}`);
+            // Continua com as inferências baseadas na extensão
+        }
+    } else if (['.png', '.jpg', '.jpeg', '.gif'].includes(fileExtension)) {
+        imageUrl = `file://${filePath}`; // Se for uma imagem, usa ela como pré-visualização
+        category = 'Image Asset';
+    }
+
+
+    // Inferência de Categoria e Descrição baseada na extensão
+    switch (fileExtension) {
+        case '.fbx':
+        case '.obj':
+        case '.gltf':
+        case '.blend':
+            category = 'Models';
+            if (description === "Descrição gerada automaticamente pelo Bibliotecário Autônomo.") {
+                description = `Modelo 3D: ${title}. Um ativo tridimensional de ${fileExtension.substring(1).toUpperCase()}.`;
+            }
+            break;
+        case '.vrm':
+            category = 'Models'; // Avatares VRM são modelos
+            if (description === "Descrição gerada automaticamente pelo Bibliotecário Autônomo.") {
+                description = `Avatar VRM: ${title}. Um modelo de avatar otimizado para realidade virtual.`;
+            }
+            break;
+        case '.unitypackage':
+            category = 'Uncategorized'; // Pode ser avatar, mundo, asset, etc. O usuário confirmará.
+            if (description === "Descrição gerada automaticamente pelo Bibliotecário Autônomo.") {
+                description = `Pacote Unity: ${title}. Contém recursos para importação no Unity Engine.`;
+            }
+            break;
+        case '.zip':
+            category = 'Uncategorized'; // Conteúdo de um zip é genérico.
+            if (description === "Descrição gerada automaticamente pelo Bibliotecário Autônomo.") {
+                description = `Arquivo ZIP: ${title}. Um arquivo compactado que pode conter diversos tipos de ativos.`;
+            }
+            break;
+        case '.world': // Exemplo para VRChat world files (se aplicável)
+            category = 'Worlds';
+            if (description === "Descrição gerada automaticamente pelo Bibliotecário Autônomo.") {
+                description = `Arquivo de Mundo VR: ${title}. Um cenário interativo para ambientes virtuais.`;
+            }
+            break;
+        // Adicione mais casos para outras extensões de arquivo que você espera
+        default:
+            // A categoria e descrição padrão já foram definidas no início
+            break;
+    }
+
+    // O downloadUrl é sempre o caminho local do arquivo original
+    const downloadUrl = `file://${filePath}`;
+
+    return {
+        id: generateUniqueId(),
+        title: title,
+        description: description,
+        downloadUrl: downloadUrl,
+        category: category,
+        imageUrl: imageUrl
+    };
+}
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
-        width: 1400,
-        height: 900,
+        width: 1200,
+        height: 800,
         minWidth: 800,
         minHeight: 600,
+        icon: path.join(__dirname, 'icon.png'), // Opcional: Adicione um ícone (ex: icon.png) na raiz
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
-            nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false // Apenas para o estudo/desenvolvimento - CUIDADO EM PRODUÇÃO
+            nodeIntegration: false,
         }
     });
 
     mainWindow.loadFile('index.html');
-
-    // Opcional: Abrir DevTools para depuração
-    // mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // Descomente para abrir as ferramentas de desenvolvedor automaticamente
 }
 
 app.whenReady().then(() => {
@@ -62,143 +145,62 @@ app.on('window-all-closed', () => {
     }
 });
 
-// --- Gerenciamento da Fila de Processamento de Arquivos ---
-function processNextFileInQueue(mainWindow) {
-    if (fileQueue.length > 0 && activeWorkers < MAX_CONCURRENT_WORKERS) {
-        const { filePath, fileIndex } = fileQueue.shift();
-        activeWorkers++;
+// --- IPC Handlers (Comunicação entre Renderer e Main Process) ---
 
-        console.log(`[Main] Iniciando worker para: ${filePath} (Worker ${activeWorkers}/${MAX_CONCURRENT_WORKERS})`);
-        
-        try { // Captura erros ao criar o worker
-            const worker = new Worker(path.join(__dirname, 'fileProcessorWorker.js'), {
-                workerData: { filePath, fileIndex, totalFiles: totalFilesToProcess }
-            });
-
-            worker.on('message', (message) => {
-                if (message.type === 'progress') {
-                    mainWindow.webContents.send('processing-file-progress', {
-                        fileIndex: message.fileIndex,
-                        filePath: message.filePath,
-                        status: message.status,
-                        error: message.error
-                    });
-                } else if (message.type === 'result') {
-                    const { fileIndex, result } = message;
-                    processingResults[fileIndex] = result;
-
-                    const completedCount = processingResults.filter(r => r !== undefined).length;
-                    mainWindow.webContents.send('processing-overall-progress', {
-                        completed: completedCount,
-                        total: totalFilesToProcess
-                    });
-
-                    console.log(`[Main] Worker para ${fileIndex} finalizado. Concluído: ${completedCount}/${totalFilesToProcess}`);
-                }
-            });
-
-            worker.on('error', (err) => {
-                console.error(`[Main] Erro fatal no worker para o arquivo ${filePath}:`, err);
-                processingResults[fileIndex] = { success: false, error: `Erro interno ao processar: ${err.message}` };
-                mainWindow.webContents.send('processing-file-progress', {
-                    fileIndex: fileIndex,
-                    filePath: filePath,
-                    status: 'failed',
-                    error: err.message
-                });
-                // Garante que o contador de concluídos seja atualizado
-                const completedCount = processingResults.filter(r => r !== undefined).length;
-                mainWindow.webContents.send('processing-overall-progress', {
-                    completed: completedCount,
-                    total: totalFilesToProcess
-                });
-            });
-
-            worker.on('exit', (code) => {
-                activeWorkers--;
-                console.log(`[Main] Worker para ${filePath} encerrou com código ${code}. Workers ativos: ${activeWorkers}`);
-                
-                processNextFileInQueue(mainWindow);
-
-                if (activeWorkers === 0 && fileQueue.length === 0) {
-                    console.log('[Main] Todos os arquivos foram processados!');
-                    mainWindow.webContents.send('processing-batch-complete', processingResults);
-                    processingResults = [];
-                    totalFilesToProcess = 0;
-                }
-            });
-        } catch (error) {
-            console.error(`[Main] Erro ao tentar criar worker para ${filePath}:`, error);
-            activeWorkers--; // Certifica-se de que o contador de workers é decrementado
-            processingResults[fileIndex] = { success: false, error: `Falha ao iniciar processamento: ${error.message}` };
-            
-            // Tenta processar o próximo arquivo na fila
-            processNextFileInQueue(mainWindow);
-
-            // Garante que o contador de concluídos seja atualizado
-            const completedCount = processingResults.filter(r => r !== undefined).length;
-            mainWindow.webContents.send('processing-overall-progress', {
-                completed: completedCount,
-                total: totalFilesToProcess
-            });
-            // Se for o último, enviar o batch completo
-            if (activeWorkers === 0 && fileQueue.length === 0) {
-                mainWindow.webContents.send('processing-batch-complete', processingResults);
-                processingResults = [];
-                totalFilesToProcess = 0;
-            }
-        }
-    }
-}
-
-// --- IPC Main - Comunicação com o Processo de Renderização (Frontend) ---
-
-ipcMain.handle('process-files-batch', async (event, filePaths) => {
-    try {
-        if (!Array.isArray(filePaths) || filePaths.length === 0) {
-            throw new Error("Caminhos de arquivo inválidos ou vazios para processamento.");
-        }
-
-        fileQueue = [];
-        processingResults = new Array(filePaths.length).fill(undefined);
-        totalFilesToProcess = filePaths.length;
-
-        console.log(`[Main] Recebido lote de ${totalFilesToProcess} arquivos para processar.`);
-        
-        filePaths.forEach((filePath, index) => {
-            fileQueue.push({ filePath, fileIndex: index });
-        });
-
-        for (let i = 0; i < MAX_CONCURRENT_WORKERS; i++) {
-            processNextFileInQueue(BrowserWindow.fromWebContents(event.sender));
-        }
-
-        return { success: true, message: `Processamento de ${totalFilesToProcess} arquivos iniciado.` };
-    } catch (error) {
-        console.error('[Main] Erro em process-files-batch:', error);
-        return { success: false, error: error.message };
+ipcMain.handle('open-file-dialog', async (event) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+            { name: 'Arquivos de Catálogo', extensions: ['zip', 'fbx', 'gltf', 'obj', 'blend', 'unitypackage', 'vrm', 'png', 'jpg', 'jpeg', 'gif', 'world'] },
+            { name: 'Todos os Arquivos', extensions: ['*'] }
+        ]
+    });
+    if (canceled) {
+        return [];
+    } else {
+        return filePaths;
     }
 });
 
-ipcMain.handle('open-file-dialog', async (event) => {
-    try {
-        const { canceled, filePaths } = await dialog.showOpenDialog({
-            properties: ['openFile', 'multiSelections'],
-            title: 'Selecione um ou mais arquivos para o Catálogo Autônomo',
-            filters: [
-                { name: 'Arquivos 3D/VR', extensions: ['gltf', 'glb', 'fbx', 'obj', 'blend', 'vrml', 'unitypackage', 'zip', 'rar', '7z'] },
-                { name: 'Imagens', extensions: ['jpg', 'png', 'gif', 'webp'] },
-                { name: 'Todos os Arquivos', extensions: ['*'] }
-            ]
-        });
+ipcMain.handle('process-files-batch', async (event, filePaths) => {
+    const results = [];
+    const totalFiles = filePaths.length;
 
-        if (canceled) {
-            return null;
-        } else {
-            return filePaths;
+    for (let i = 0; i < totalFiles; i++) {
+        const filePath = filePaths[i];
+        try {
+            // Inferir os dados do arquivo
+            const itemData = await inferFileData(filePath);
+            results.push({ success: true, data: itemData });
+
+            // Enviar progresso do arquivo individual
+            event.sender.send('processing-file-progress', {
+                fileIndex: i,
+                totalFiles: totalFiles,
+                filePath: filePath,
+                status: 'completed'
+            });
+
+        } catch (error) {
+            console.error(`Falha ao processar arquivo ${filePath}:`, error);
+            results.push({ success: false, error: error.message, filePath: filePath });
+            event.sender.send('processing-file-progress', {
+                fileIndex: i,
+                totalFiles: totalFiles,
+                filePath: filePath,
+                status: 'failed',
+                error: error.message
+            });
         }
-    } catch (error) {
-        console.error('[Main] Erro em open-file-dialog:', error);
-        return { success: false, error: error.message };
+        // Enviar progresso geral do lote
+        event.sender.send('processing-overall-progress', {
+            completed: i + 1,
+            total: totalFiles
+        });
     }
+
+    // Enviar sinal de lote completo com os resultados finais
+    event.sender.send('processing-batch-complete', results);
+
+    return { success: true, message: 'Processamento em lote iniciado. Verifique o console para resultados.' };
 });
