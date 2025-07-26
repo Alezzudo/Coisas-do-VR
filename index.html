@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Catálogo Autônomo Real (Aplicação Electron - Consolidado)</title>
     <style>
+        /* ... (seu CSS existente - sem alterações aqui) ... */
         :root {
             --bg-color: #0f0f0f;
             --card-bg: #1c1c1c;
@@ -1048,8 +1049,8 @@
                     },
                 };
             };
-            function h(e) {
-                for (var t = arguments.length > 1 && void 0 !== arguments[1] ? arguments[1] : [], n = new Map(), r = 0, i = t.length; r < i; r++) {
+            function h(e, t) {
+                for (var n = new Map(), r = 0, i = t.length; r < i; r++) {
                     var a = t[r];
                     if (a.name) {
                         var s = a.name,
@@ -1435,7 +1436,7 @@
 
                 // Chama o processo principal para iniciar o processamento em lote
                 // Não precisa esperar o retorno aqui, os callbacks onProcessingBatchComplete etc. lidarão com o resultado
-                window.electronAPI.processFilesBatch(filePaths); 
+                await window.electronAPI.processFilesBatch(filePaths); 
                 
             } catch (error) {
                 console.error("Erro ao iniciar processamento em lote:", error);
@@ -1474,7 +1475,7 @@
             loadingStatus.textContent = `Processamento de lote concluído!`;
             loadingBar.style.width = '100%';
 
-            // Se apenas um arquivo foi processado com sucesso, abra o modal de confirmação
+            // Se apenas um arquivo foi processado com sucesso, abre o modal de confirmação
             const successfulResults = results.filter(itemResult => itemResult.success);
             
             if (successfulResults.length === 1 && results.length === 1 && isNewCardBeingProcessed) {
@@ -1761,7 +1762,8 @@
         
         // --- Eventos da Área de Arrastar/Soltar (AGORA ENVIA MÚLTIPLOS ARQUIVOS PARA O WORKER) ---
         dropArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
+            e.preventDefault(); // ESSENCIAL: Evita o comportamento padrão do navegador
+            e.stopPropagation(); // ESSENCIAL: Impede que o evento se propague para outros elementos
             dropArea.classList.add('highlight');
         });
 
@@ -1770,7 +1772,8 @@
         });
 
         dropArea.addEventListener('drop', async (e) => {
-            e.preventDefault();
+            e.preventDefault(); // ESSENCIAL: Evita o comportamento padrão do navegador (abrir arquivo)
+            e.stopPropagation(); // ESSENCIAL: Impede que o evento se propague
             dropArea.classList.remove('highlight');
 
             const files = e.dataTransfer.files;
