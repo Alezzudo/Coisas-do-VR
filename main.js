@@ -1,6 +1,6 @@
 // main.js
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip'); // Para ler arquivos .zip
@@ -155,32 +155,31 @@ ipcMain.handle('open-file-dialog', async (event) => {
             { name: 'Todos os Arquivos', extensions: ['*'] }
         ]
     });
-    if (canceled) {
-        return [];
-    } else {
-        return filePaths;
-    }
+    return canceled ? [] : filePaths;
 });
 
 ipcMain.handle('process-files-batch', async (event, filePaths) => {
     const results = [];
     const totalFiles = filePaths.length;
 
+    // Adicione validação básica aqui também, caso o frontend não passe corretamente
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
+        console.warn('processFilesBatch no main.js recebeu caminhos de arquivo inválidos.');
+        event.sender.send('processing-batch-complete', []); // Notifica o frontend
+        return { success: false, message: 'Nenhum arquivo para processar.' };
+    }
+
     for (let i = 0; i < totalFiles; i++) {
         const filePath = filePaths[i];
         try {
-            // Inferir os dados do arquivo
-            const itemData = await inferFileData(filePath);
+            const itemData = await inferFileData(filePath); // Sua função de inferência existente
             results.push({ success: true, data: itemData });
-
-            // Enviar progresso do arquivo individual
             event.sender.send('processing-file-progress', {
                 fileIndex: i,
                 totalFiles: totalFiles,
                 filePath: filePath,
                 status: 'completed'
             });
-
         } catch (error) {
             console.error(`Falha ao processar arquivo ${filePath}:`, error);
             results.push({ success: false, error: error.message, filePath: filePath });
@@ -192,15 +191,51 @@ ipcMain.handle('process-files-batch', async (event, filePaths) => {
                 error: error.message
             });
         }
-        // Enviar progresso geral do lote
         event.sender.send('processing-overall-progress', {
             completed: i + 1,
             total: totalFiles
         });
     }
 
-    // Enviar sinal de lote completo com os resultados finais
     event.sender.send('processing-batch-complete', results);
+    return { success: true, message: 'Processamento em lote concluído.' };
+});
 
-    return { success: true, message: 'Processamento em lote iniciado. Verifique o console para resultados.' };
+// NOVO: Manipulador IPC para abrir arquivo ou revelar na pasta
+ipcMain.handle('open-file-or-folder', async (event, filePath) => {
+    try {
+        // Verifica se o caminho existe para evitar erros desnecessários
+        if (!fs.existsSync(filePath)) {
+            console.warn(`Arquivo não encontrado para abrir: ${filePath}`);
+            return false;
+        }
+
+        // Tenta abrir o arquivo com o aplicativo padrão
+        const result = await shell.openPath(filePath);
+        if (result) {
+            console.error(`Erro ao abrir ${filePath}: ${result}`);
+            return false; // Retorna false se houver um erro (result conterá a mensagem de erro)
+        }
+        return true; // Sucesso
+    } catch (error) {
+        console.error(`Erro inesperado ao tentar abrir o arquivo/pasta ${filePath}:`, error);
+        return false;
+    }
+});
+
+// NOVO: Manipulador IPC para logs do renderer (opcional, mas bom para depuração)
+ipcMain.on('log-message', (event, { message, level }) => {
+    switch (level) {
+        case 'info':
+            console.log(`[Renderer INFO] ${message}`);
+            break;
+        case 'warn':
+            console.warn(`[Renderer WARN] ${message}`);
+            break;
+        case 'error':
+            console.error(`[Renderer ERROR] ${message}`);
+            break;
+        default:
+            console.log(`[Renderer LOG] ${message}`);
+    }
 });
