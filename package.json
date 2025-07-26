@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "start:dev": "npm run clean && electron . --inspect=5858 --remote-debugging-port=9222 --enable-logging",
-    "watch": "nodemon --exec 'electron .' --watch main.js --watch preload.js --watch index.html",
+    "watch": "nodemon --exec 'electron .' --watch main.js --watch preload.js --watch index.html --watch fileProcessorWorker.js",
     "clean": "rimraf dist out",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -58,7 +58,8 @@
       "index.html",
       "package.json",
       "node_modules",
-      "icon.png"
+      "icon.png",
+      "fileProcessorWorker.js"
     ],
     "win": {
       "target": "nsis",
