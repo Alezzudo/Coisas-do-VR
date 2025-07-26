@@ -1179,7 +1179,12 @@
         function showErrorMessage(message, duration = 5000) {
             errorMessagesDiv.textContent = 'Erro: ' + message;
             errorMessagesDiv.classList.add('show');
-            window.electronAPI.log(message, 'error'); // Adiciona esta linha
+            // Log para o processo principal
+            if (window.electronAPI && window.electronAPI.log) {
+                window.electronAPI.log(message, 'error');
+            } else {
+                console.error("electronAPI.log não está disponível.");
+            }
             setTimeout(() => {
                 errorMessagesDiv.classList.remove('show');
             }, duration);
@@ -1189,7 +1194,9 @@
         window.onerror = function(message, source, lineno, colno, error) {
             console.error('Erro JS (window.onerror):', message, source, lineno, colno, error);
             showErrorMessage(`Erro na interface: ${message.substring(0, Math.min(message.length, 100))}...`);
-            window.electronAPI.log(`JS Error: ${message} at ${source}:${lineno}`, 'error'); // Adiciona esta linha
+            if (window.electronAPI && window.electronAPI.log) {
+                window.electronAPI.log(`JS Error: ${message} at ${source}:${lineno}`, 'error');
+            }
             return true; // Previne o comportamento padrão do navegador
         };
 
@@ -1197,7 +1204,9 @@
         window.addEventListener('unhandledrejection', (event) => {
             console.error('Promessa Rejeitada (unhandledrejection):', event.reason);
             showErrorMessage(`Um problema interno ocorreu. ${event.reason.message || event.reason}`);
-            window.electronAPI.log(`Unhandled Rejection: ${event.reason.message || event.reason}`, 'error'); // Adiciona esta linha
+            if (window.electronAPI && window.electronAPI.log) {
+                window.electronAPI.log(`Unhandled Rejection: ${event.reason.message || event.reason}`, 'error');
+            }
         });
 
 
@@ -1409,9 +1418,15 @@
                 initializeFuse(); // Re-inicializa Fuse.js com os novos dados
                 renderCards();
                 closeModal();
+                if (window.electronAPI && window.electronAPI.log) {
+                    window.electronAPI.log(`Item "${title}" salvo/atualizado com sucesso.`, 'info');
+                }
             } catch (error) {
                 console.error("Erro ao salvar card:", error);
                 showErrorMessage("Não foi possível salvar o item. Tente novamente.");
+                if (window.electronAPI && window.electronAPI.log) {
+                    window.electronAPI.log(`Erro ao salvar card: ${error.message}`, 'error');
+                }
             }
         }
 
@@ -1420,7 +1435,8 @@
         async function startProcessingAnimation(statusText, progress) {
             loadingBar.style.width = `${progress}%`;
             loadingStatus.textContent = statusText;
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // No Electron, um pequeno delay aqui pode ser útil para a renderização da UI
+            await new Promise(resolve => requestAnimationFrame(resolve));
         }
 
         async function processFilesBatchViaElectron(filePaths) {
@@ -1436,55 +1452,57 @@
 
                 // Chama o processo principal para iniciar o processamento em lote
                 // Não precisa esperar o retorno aqui, os callbacks onProcessingBatchComplete etc. lidarão com o resultado
-                await window.electronAPI.processFilesBatch(filePaths); 
+                if (window.electronAPI && window.electronAPI.processFilesBatch) {
+                     await window.electronAPI.processFilesBatch(filePaths); 
+                } else {
+                    showErrorMessage("electronAPI.processFilesBatch não está disponível. Verifique preload.js.");
+                    loadingOverlay.classList.remove('visible');
+                    return;
+                }
+               
                 
             } catch (error) {
                 console.error("Erro ao iniciar processamento em lote:", error);
                 showErrorMessage(`Falha ao iniciar processamento: ${error.message}`);
                 loadingOverlay.classList.remove('visible');
+                if (window.electronAPI && window.electronAPI.log) {
+                    window.electronAPI.log(`Erro ao iniciar processamento em lote: ${error.message}`, 'error');
+                }
             }
         }
 
         // --- Listeners de Progresso do Electron ---
-        window.electronAPI.onProcessingFileProgress((update) => {
-            // Se houver um item "em progresso" com dados, e o modal estiver aberto em modo de novo processamento
-            // Atualiza os campos do modal com os dados parciais.
-            if (update.status === 'completed' && isNewCardBeingProcessed && !currentEditingCardId) {
-                 // Apenas para o primeiro arquivo de um lote de 1 (ou o primeiro de um lote maior se quisermos preview)
-                // Se quisermos preview em tempo real de múltiplos, teríamos que adaptar o modal para lista de preview.
-                // Por agora, o modal só exibe um por vez para confirmação.
-                if (update.fileIndex === 0 && update.totalFiles === 1) { 
-                    openModal(update.data, true); // Re-abre/atualiza o modal com os dados inferidos
+        if (window.electronAPI) {
+            window.electronAPI.onProcessingFileProgress((update) => {
+                console.log('Progresso de arquivo:', update);
+                // Se houver um item "em progresso" com dados, e o modal estiver aberto em modo de novo processamento
+                // Atualiza os campos do modal com os dados parciais.
+                if (update.status === 'completed' && isNewCardBeingProcessed) {
+                    // Se apenas um arquivo foi processado com sucesso, abre o modal de confirmação
+                    if (update.totalFiles === 1) { 
+                        openModal(update.data, true); // Re-abre/atualiza o modal com os dados inferidos
+                    }
                 }
-            }
-            loadingStatus.textContent = `Processando arquivo ${update.fileIndex + 1} de ${update.totalFiles}: ${update.filePath.split(/[\\/]/).pop()}... (${update.status})`;
-            if (update.status === 'failed') {
-                console.error(`Falha no arquivo ${update.filePath}: ${update.error}`);
-                showErrorMessage(`Erro no arquivo: ${update.filePath.split(/[\\/]/).pop()}. Veja o console para detalhes.`);
-            }
-        });
+                loadingStatus.textContent = `Processando arquivo ${update.fileIndex + 1} de ${update.totalFiles}: ${update.filePath.split(/[\\/]/).pop()}... (${update.status})`;
+                if (update.status === 'failed') {
+                    console.error(`Falha no arquivo ${update.filePath}: ${update.error}`);
+                    showErrorMessage(`Erro no arquivo: ${update.filePath.split(/[\\/]/).pop()}. Veja o console para detalhes.`);
+                }
+            });
 
-        window.electronAPI.onProcessingOverallProgress((progress) => {
-            const overallProgress = (progress.completed / progress.total) * 100;
-            loadingBar.style.width = `${overallProgress}%`;
-            loadingStatus.textContent = `Processando lote: ${progress.completed} de ${progress.total} arquivos...`;
-        });
+            window.electronAPI.onProcessingOverallProgress((progress) => {
+                const overallProgress = (progress.completed / progress.total) * 100;
+                loadingBar.style.width = `${overallProgress}%`;
+                loadingStatus.textContent = `Processando lote: ${progress.completed} de ${progress.total} arquivos...`;
+            });
 
-        window.electronAPI.onProcessingBatchComplete((results) => {
-            console.log('Lote de processamento concluído!', results);
-            loadingStatus.textContent = `Processamento de lote concluído!`;
-            loadingBar.style.width = '100%';
+            window.electronAPI.onProcessingBatchComplete((results) => {
+                console.log('Lote de processamento concluído!', results);
+                loadingStatus.textContent = `Processamento de lote concluído!`;
+                loadingBar.style.width = '100%';
 
-            // Se apenas um arquivo foi processado com sucesso, abre o modal de confirmação
-            const successfulResults = results.filter(itemResult => itemResult.success);
-            
-            if (successfulResults.length === 1 && results.length === 1 && isNewCardBeingProcessed) {
-                // Se um único arquivo foi processado com sucesso e estamos no fluxo de novo card,
-                // já abrimos o modal via onProcessingFileProgress.
-                // Apenas nos certificamos que ele está visível e correto.
-                openModal(successfulResults[0].data, true); // Re-confirma o estado do modal
-            } else {
-                // Para múltiplos arquivos ou zero/múltiplas falhas, adiciona diretamente e exibe uma mensagem sumária
+                // Se apenas um arquivo foi processado com sucesso, o modal já foi aberto via onProcessingFileProgress.
+                // Agora, processamos os múltiplos resultados.
                 let addedCount = 0;
                 results.forEach(itemResult => {
                     if (itemResult.success) {
@@ -1496,11 +1514,14 @@
                             downloadUrl: itemResult.data.downloadUrl,
                             category: itemResult.data.category
                         };
-                        cards.push(newCard);
-                        addedCount++;
+                        // Verifica se o card já existe antes de adicionar (evita duplicatas se o modal já salvou)
+                        if (!cards.some(c => c.id === newCard.id)) {
+                             cards.push(newCard);
+                             addedCount++;
+                        }
                     } else {
                         console.warn(`Arquivo falhou no processamento: ${itemResult.error}`);
-                        showErrorMessage(`Alguns arquivos falharam. Veja o console.`);
+                        showErrorMessage(`Um arquivo falhou: ${itemResult.filePath.split(/[\\/]/).pop()}.`);
                     }
                 });
                 saveCards();
@@ -1509,20 +1530,34 @@
 
                 if (addedCount > 0) {
                     alert(`${addedCount} novo(s) item(ns) adicionado(s) ao catálogo.`);
-                } else if (results.length > 0) {
-                    alert(`Nenhum item adicionado. Verifique os erros no console.`);
+                } else if (results.length > 0 && addedCount === 0) {
+                     alert(`Nenhum novo item adicionado, mas ${results.length} arquivos foram processados. Verifique se já existem ou falharam.`);
                 } else {
                     alert('Nenhum arquivo processado.');
                 }
-                closeModal(); // Garante que o modal esteja fechado para múltiplos itens
-            }
+                
+                // Fecha o modal apenas se estiver no fluxo de um único arquivo e ele já foi processado e confirmado
+                // Ou se múltiplos arquivos foram processados e não há mais confirmações pendentes
+                if (results.length > 1 || (results.length === 1 && results[0].success && !isNewCardBeingProcessed)) {
+                    closeModal(); // Garante que o modal esteja fechado para múltiplos itens
+                } else if (results.length === 1 && results[0].success && isNewCardBeingProcessed) {
+                    // Se é um único arquivo e estamos no fluxo de novo card, o modal já está aberto para confirmação.
+                    // Não fechamos ele automaticamente aqui. O usuário irá confirmar e salvar.
+                } else {
+                     closeModal(); // Para qualquer outro caso (ex: falha total, nenhum arquivo)
+                }
 
-            // Esconde a sobreposição após um pequeno atraso
-            setTimeout(() => {
-                loadingOverlay.classList.remove('visible');
-                loadingStatus.textContent = 'Iniciando processamento...'; // Reset para a próxima vez
-            }, 1000); 
-        });
+                // Esconde a sobreposição após um pequeno atraso
+                setTimeout(() => {
+                    loadingOverlay.classList.remove('visible');
+                    loadingStatus.textContent = 'Iniciando processamento...'; // Reset para a próxima vez
+                    isNewCardBeingProcessed = false; // Reseta a flag final
+                }, 1000); 
+            });
+        } else {
+            console.error("window.electronAPI não está disponível. Verifique o arquivo preload.js e as configurações do BrowserWindow.");
+            showErrorMessage("Erro de inicialização: a comunicação com o sistema está comprometida. Verifique o console.");
+        }
 
 
         // --- Funções de Eventos ---
@@ -1530,14 +1565,18 @@
         // Evento de clique para adicionar novo card manualmente ou selecionar arquivo(s)
         addNewCardButton.addEventListener('click', async () => {
             try {
-                const selectedFilePaths = await window.electronAPI.openFileDialog();
-                if (selectedFilePaths && selectedFilePaths.length > 0) {
-                    // Define a flag para indicar que um novo card está sendo processado via seleção de arquivo
-                    isNewCardBeingProcessed = true; 
-                    await processFilesBatchViaElectron(selectedFilePaths);
+                if (window.electronAPI && window.electronAPI.openFileDialog) {
+                    const selectedFilePaths = await window.electronAPI.openFileDialog();
+                    if (selectedFilePaths && selectedFilePaths.length > 0) {
+                        // Define a flag para indicar que um novo card está sendo processado via seleção de arquivo
+                        isNewCardBeingProcessed = true; 
+                        await processFilesBatchViaElectron(selectedFilePaths);
+                    } else {
+                        // Se nenhum arquivo foi selecionado no diálogo, abre o modal vazio para criação manual
+                        openModal(null, false); 
+                    }
                 } else {
-                    // Se nenhum arquivo foi selecionado no diálogo, abre o modal vazio para criação manual
-                    openModal(null, false); 
+                    showErrorMessage("Funcionalidade de selecionar arquivo não disponível.");
                 }
             } catch (error) {
                 console.error("Erro ao abrir diálogo de arquivo:", error);
@@ -1585,6 +1624,9 @@
                     saveCards();
                     initializeFuse(); // Re-inicializa Fuse.js
                     renderCards();
+                    if (window.electronAPI && window.electronAPI.log) {
+                        window.electronAPI.log(`Item com ID ${cardId} deletado.`, 'info');
+                    }
                 }
             }
             // Abrir arquivo/pasta ao clicar no título (texto "embed")
@@ -1595,20 +1637,24 @@
                 if (card && card.downloadUrl) {
                     // Para URLs de arquivo local ('file://')
                     if (card.downloadUrl.startsWith('file://')) {
-                        const filePath = card.downloadUrl.substring(7); // Remove 'file://'
-                        window.electronAPI.openFileOrFolder(filePath)
-                            .then(success => {
-                                if (success) {
-                                    window.electronAPI.log(`Arquivo ou pasta aberta: ${filePath}`, 'info');
-                                } else {
-                                    showErrorMessage(`Não foi possível abrir: ${filePath}. O arquivo pode não existir ou permissões negadas.`, 8000);
-                                    window.electronAPI.log(`Falha ao abrir arquivo/pasta: ${filePath}`, 'error');
-                                }
-                            })
-                            .catch(err => {
-                                showErrorMessage(`Erro ao tentar abrir: ${err.message}`, 8000);
-                                window.electronAPI.log(`Erro ao invocar openFileOrFolder para ${filePath}: ${err.message}`, 'error');
-                            });
+                        const filePath = decodeURIComponent(card.downloadUrl.substring(7)); // Remove 'file://' e decodifica
+                        if (window.electronAPI && window.electronAPI.openFileOrFolder) {
+                            window.electronAPI.openFileOrFolder(filePath)
+                                .then(success => {
+                                    if (success) {
+                                        window.electronAPI.log(`Arquivo ou pasta aberta: ${filePath}`, 'info');
+                                    } else {
+                                        showErrorMessage(`Não foi possível abrir: ${filePath}. O arquivo pode não existir ou permissões negadas.`, 8000);
+                                        window.electronAPI.log(`Falha ao abrir arquivo/pasta: ${filePath}`, 'error');
+                                    }
+                                })
+                                .catch(err => {
+                                    showErrorMessage(`Erro ao tentar abrir: ${err.message}`, 8000);
+                                    window.electronAPI.log(`Erro ao invocar openFileOrFolder para ${filePath}: ${err.message}`, 'error');
+                                });
+                        } else {
+                            showErrorMessage("Funcionalidade de abrir arquivo/pasta não disponível.");
+                        }
                     } else {
                         // Para URLs web (ainda mantém o comportamento de link)
                         const link = document.createElement('a');
@@ -1617,7 +1663,9 @@
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        window.electronAPI.log(`Tentando baixar: "${card.title}" de ${card.downloadUrl}`, 'info');
+                        if (window.electronAPI && window.electronAPI.log) {
+                            window.electronAPI.log(`Tentando baixar: "${card.title}" de ${card.downloadUrl}`, 'info');
+                        }
                     }
                 } else {
                     showErrorMessage('URL de download não disponível para este item.', 5000);
@@ -1665,13 +1713,14 @@
                 card.addEventListener('dragend', handleDragEnd);
             });
 
+            // Adicionado para reordenar dentro do cardsContainer
             cardsContainer.addEventListener('dragover', handleDragOver);
             cardsContainer.addEventListener('drop', handleDrop);
             cardsContainer.addEventListener('dragleave', handleDragLeave);
 
             // Simulação de alocação (para categorias)
             document.querySelectorAll('.tab-button').forEach(tab => {
-                if (tab.dataset.category !== 'all') {
+                if (tab.dataset.category !== 'all') { // "Todos" não deve ser um alvo de drop para realocação
                     tab.addEventListener('dragover', handleCategoryDragOver);
                     tab.addEventListener('dragleave', handleCategoryDragLeave);
                     tab.addEventListener('drop', handleCategoryDrop);
@@ -1703,33 +1752,40 @@
         }
 
         function handleDragOver(e) {
-            e.preventDefault();
+            e.preventDefault(); // ESSENCIAL para permitir o drop
             e.dataTransfer.dropEffect = 'move';
         }
 
-        function handleDragLeave(e) {}
+        function handleDragLeave(e) {
+            // Opcional: Adicionar um efeito visual quando o drag sai do container
+        }
 
         function handleDrop(e) {
-            e.preventDefault();
+            e.preventDefault(); // ESSENCIAL para processar o drop aqui
             if (draggedCard && e.target.closest('.cards-container') === cardsContainer) {
                 const targetCard = e.target.closest('.card');
                 if (targetCard && targetCard !== draggedCard) {
                     const targetRect = targetCard.getBoundingClientRect();
+                    // Lógica para determinar se insere antes ou depois
                     if (e.clientY < targetRect.top + targetRect.height / 2) {
                         cardsContainer.insertBefore(draggedCard, targetCard);
                     } else {
                         cardsContainer.insertBefore(draggedCard, targetCard.nextSibling);
                     }
+                    // Atualiza a ordem no array 'cards' e salva
                     const reorderedIds = Array.from(cardsContainer.children).map(c => c.dataset.id);
                     cards.sort((a, b) => reorderedIds.indexOf(a.id) - reorderedIds.indexOf(b.id));
                     saveCards();
+                    if (window.electronAPI && window.electronAPI.log) {
+                        window.electronAPI.log(`Card "${draggedCard.querySelector('.card-title').textContent}" reordenado.`, 'info');
+                    }
                 }
             }
         }
 
         // --- Drag and Drop (Para Categorias - Simulação de Alocação) ---
         function handleCategoryDragOver(e) {
-            e.preventDefault();
+            e.preventDefault(); // ESSENCIAL para permitir o drop
             e.dataTransfer.dropEffect = 'move';
             this.style.border = '2px solid var(--text-accent)';
             this.style.boxShadow = '0 0 15px rgba(255, 0, 0, 0.6)';
@@ -1741,7 +1797,7 @@
         }
 
         function handleCategoryDrop(e) {
-            e.preventDefault();
+            e.preventDefault(); // ESSENCIAL para processar o drop aqui
             this.style.border = '1px solid var(--card-border)';
             this.style.boxShadow = 'none';
 
@@ -1755,7 +1811,9 @@
                     saveCards();
                     initializeFuse(); // Re-inicializa Fuse.js
                     renderCards();
-                    window.electronAPI.log(`Item "${cards[cardIndex].title}" realocado para "${newCategory}"`, 'info');
+                    if (window.electronAPI && window.electronAPI.log) {
+                        window.electronAPI.log(`Item "${cards[cardIndex].title}" realocado para "${newCategory}"`, 'info');
+                    }
                 }
             }
         }
@@ -1806,7 +1864,11 @@
         });
 
         // --- Inicialização ---
-        loadCards();
+        // Garante que o DOM esteja totalmente carregado antes de carregar cards
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCards();
+        });
+
     </script>
 </body>
 </html>
