@@ -1,14 +1,30 @@
-// main.js - O Coração Autônomo com Workers e Concorrência Otimizada
+// main.js - O Coração Autônomo com Workers e Concorrência Otimizada (Com Tratamento de Erros)
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { Worker } = require('worker_threads'); // Importa worker_threads
+const { Worker } = require('worker_threads');
+const fs = require('fs'); // Para logging de erros, se necessário
+
+// --- Tratamento de Erros Globais no Processo Principal ---
+process.on('uncaughtException', (error) => {
+    console.error('[Main Process - Uncaught Exception]', error);
+    // Em um ambiente de produção, você pode logar isso em um arquivo ou serviço de monitoramento.
+    // Para o usuário, pode exibir um dialog simples.
+    dialog.showErrorBox('Erro Inesperado no Sistema', 'Um erro grave ocorreu e a aplicação pode precisar ser reiniciada. Detalhes: ' + error.message);
+    app.quit(); // Pode ser agressivo, mas evita estados corrompidos.
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Main Process - Unhandled Rejection]', reason);
+    // Log do erro, pode ser útil para depuração de promessas não tratadas.
+    // Semelhante ao uncaughtException, mas para promessas.
+});
 
 // Configuração de concorrência (quantos arquivos processar em paralelo)
 const MAX_CONCURRENT_WORKERS = require('os').cpus().length || 4; // Usa o número de CPUs, ou 4 como fallback
 let activeWorkers = 0;
-let fileQueue = []; // Fila de arquivos para processar
-let processingResults = []; // Armazena resultados dos arquivos em processamento
-let totalFilesToProcess = 0; // Total de arquivos na sessão atual de processamento
+let fileQueue = [];
+let processingResults = [];
+let totalFilesToProcess = 0;
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -20,7 +36,7 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false // Apenas para o estudo/desenvolvimento
+            webSecurity: false // Apenas para o estudo/desenvolvimento - CUIDADO EM PRODUÇÃO
         }
     });
 
@@ -49,110 +65,140 @@ app.on('window-all-closed', () => {
 // --- Gerenciamento da Fila de Processamento de Arquivos ---
 function processNextFileInQueue(mainWindow) {
     if (fileQueue.length > 0 && activeWorkers < MAX_CONCURRENT_WORKERS) {
-        const { filePath, fileIndex } = fileQueue.shift(); // Pega o próximo arquivo da fila
+        const { filePath, fileIndex } = fileQueue.shift();
         activeWorkers++;
 
         console.log(`[Main] Iniciando worker para: ${filePath} (Worker ${activeWorkers}/${MAX_CONCURRENT_WORKERS})`);
         
-        const worker = new Worker(path.join(__dirname, 'fileProcessorWorker.js'), {
-            workerData: { filePath, fileIndex, totalFiles: totalFilesToProcess }
-        });
+        try { // Captura erros ao criar o worker
+            const worker = new Worker(path.join(__dirname, 'fileProcessorWorker.js'), {
+                workerData: { filePath, fileIndex, totalFiles: totalFilesToProcess }
+            });
 
-        // Eventos do Worker
-        worker.on('message', (message) => {
-            if (message.type === 'progress') {
-                // Envia o progresso individual de volta ao frontend
+            worker.on('message', (message) => {
+                if (message.type === 'progress') {
+                    mainWindow.webContents.send('processing-file-progress', {
+                        fileIndex: message.fileIndex,
+                        filePath: message.filePath,
+                        status: message.status,
+                        error: message.error
+                    });
+                } else if (message.type === 'result') {
+                    const { fileIndex, result } = message;
+                    processingResults[fileIndex] = result;
+
+                    const completedCount = processingResults.filter(r => r !== undefined).length;
+                    mainWindow.webContents.send('processing-overall-progress', {
+                        completed: completedCount,
+                        total: totalFilesToProcess
+                    });
+
+                    console.log(`[Main] Worker para ${fileIndex} finalizado. Concluído: ${completedCount}/${totalFilesToProcess}`);
+                }
+            });
+
+            worker.on('error', (err) => {
+                console.error(`[Main] Erro fatal no worker para o arquivo ${filePath}:`, err);
+                processingResults[fileIndex] = { success: false, error: `Erro interno ao processar: ${err.message}` };
                 mainWindow.webContents.send('processing-file-progress', {
-                    fileIndex: message.fileIndex,
-                    filePath: message.filePath,
-                    status: message.status,
-                    error: message.error
+                    fileIndex: fileIndex,
+                    filePath: filePath,
+                    status: 'failed',
+                    error: err.message
                 });
-            } else if (message.type === 'result') {
-                // O worker terminou o processamento de um arquivo
-                const { fileIndex, result } = message;
-                processingResults[fileIndex] = result; // Armazena o resultado
-
-                // Calcula o progresso geral e envia para o frontend
+                // Garante que o contador de concluídos seja atualizado
                 const completedCount = processingResults.filter(r => r !== undefined).length;
                 mainWindow.webContents.send('processing-overall-progress', {
                     completed: completedCount,
                     total: totalFilesToProcess
                 });
+            });
 
-                console.log(`[Main] Worker para ${fileIndex} finalizado. Concluído: ${completedCount}/${totalFilesToProcess}`);
-            }
-        });
+            worker.on('exit', (code) => {
+                activeWorkers--;
+                console.log(`[Main] Worker para ${filePath} encerrou com código ${code}. Workers ativos: ${activeWorkers}`);
+                
+                processNextFileInQueue(mainWindow);
 
-        worker.on('error', (err) => {
-            console.error(`[Main] Erro no worker para o arquivo ${filePath}:`, err);
-            processingResults[fileIndex] = { success: false, error: err.message };
+                if (activeWorkers === 0 && fileQueue.length === 0) {
+                    console.log('[Main] Todos os arquivos foram processados!');
+                    mainWindow.webContents.send('processing-batch-complete', processingResults);
+                    processingResults = [];
+                    totalFilesToProcess = 0;
+                }
+            });
+        } catch (error) {
+            console.error(`[Main] Erro ao tentar criar worker para ${filePath}:`, error);
+            activeWorkers--; // Certifica-se de que o contador de workers é decrementado
+            processingResults[fileIndex] = { success: false, error: `Falha ao iniciar processamento: ${error.message}` };
+            
+            // Tenta processar o próximo arquivo na fila
+            processNextFileInQueue(mainWindow);
+
+            // Garante que o contador de concluídos seja atualizado
             const completedCount = processingResults.filter(r => r !== undefined).length;
             mainWindow.webContents.send('processing-overall-progress', {
                 completed: completedCount,
                 total: totalFilesToProcess
             });
-        });
-
-        worker.on('exit', (code) => {
-            activeWorkers--;
-            console.log(`[Main] Worker para ${filePath} encerrou com código ${code}. Workers ativos: ${activeWorkers}`);
-            
-            // Tenta processar o próximo arquivo na fila
-            processNextFileInQueue(mainWindow);
-
-            // Verifica se todos os arquivos foram processados
+            // Se for o último, enviar o batch completo
             if (activeWorkers === 0 && fileQueue.length === 0) {
-                console.log('[Main] Todos os arquivos foram processados!');
-                // Envia todos os resultados de volta ao renderer para exibição
                 mainWindow.webContents.send('processing-batch-complete', processingResults);
-                // Limpa os resultados para a próxima sessão
                 processingResults = [];
                 totalFilesToProcess = 0;
             }
-        });
+        }
     }
 }
 
 // --- IPC Main - Comunicação com o Processo de Renderização (Frontend) ---
 
-// Listener para o evento de processamento de múltiplos arquivos do frontend
 ipcMain.handle('process-files-batch', async (event, filePaths) => {
-    fileQueue = []; // Limpa a fila existente
-    processingResults = new Array(filePaths.length).fill(undefined); // Reset e preenche com undefined
-    totalFilesToProcess = filePaths.length;
+    try {
+        if (!Array.isArray(filePaths) || filePaths.length === 0) {
+            throw new Error("Caminhos de arquivo inválidos ou vazios para processamento.");
+        }
 
-    console.log(`[Main] Recebido lote de ${totalFilesToProcess} arquivos para processar.`);
-    
-    // Adiciona todos os arquivos à fila
-    filePaths.forEach((filePath, index) => {
-        fileQueue.push({ filePath, fileIndex: index });
-    });
+        fileQueue = [];
+        processingResults = new Array(filePaths.length).fill(undefined);
+        totalFilesToProcess = filePaths.length;
 
-    // Inicia o processamento dos primeiros arquivos (até o limite de concorrência)
-    for (let i = 0; i < MAX_CONCURRENT_WORKERS; i++) {
-        processNextFileInQueue(BrowserWindow.fromWebContents(event.sender));
+        console.log(`[Main] Recebido lote de ${totalFilesToProcess} arquivos para processar.`);
+        
+        filePaths.forEach((filePath, index) => {
+            fileQueue.push({ filePath, fileIndex: index });
+        });
+
+        for (let i = 0; i < MAX_CONCURRENT_WORKERS; i++) {
+            processNextFileInQueue(BrowserWindow.fromWebContents(event.sender));
+        }
+
+        return { success: true, message: `Processamento de ${totalFilesToProcess} arquivos iniciado.` };
+    } catch (error) {
+        console.error('[Main] Erro em process-files-batch:', error);
+        return { success: false, error: error.message };
     }
-
-    return { success: true, message: `Processamento de ${totalFilesToProcess} arquivos iniciado.` };
 });
 
-
-// Listener para abrir a caixa de diálogo de seleção de arquivo (agora pode selecionar múltiplos)
 ipcMain.handle('open-file-dialog', async (event) => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-        properties: ['openFile', 'multiSelections'], // Permite seleção de múltiplos arquivos
-        title: 'Selecione um ou mais arquivos para o Catálogo Autônomo',
-        filters: [
-            { name: 'Arquivos 3D/VR', extensions: ['gltf', 'glb', 'fbx', 'obj', 'blend', 'vrml', 'unitypackage', 'zip', 'rar', '7z'] },
-            { name: 'Imagens', extensions: ['jpg', 'png', 'gif', 'webp'] },
-            { name: 'Todos os Arquivos', extensions: ['*'] }
-        ]
-    });
+    try {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+            properties: ['openFile', 'multiSelections'],
+            title: 'Selecione um ou mais arquivos para o Catálogo Autônomo',
+            filters: [
+                { name: 'Arquivos 3D/VR', extensions: ['gltf', 'glb', 'fbx', 'obj', 'blend', 'vrml', 'unitypackage', 'zip', 'rar', '7z'] },
+                { name: 'Imagens', extensions: ['jpg', 'png', 'gif', 'webp'] },
+                { name: 'Todos os Arquivos', extensions: ['*'] }
+            ]
+        });
 
-    if (canceled) {
-        return null; // Usuário cancelou
-    } else {
-        return filePaths; // Retorna array de caminhos de arquivos
+        if (canceled) {
+            return null;
+        } else {
+            return filePaths;
+        }
+    } catch (error) {
+        console.error('[Main] Erro em open-file-dialog:', error);
+        return { success: false, error: error.message };
     }
 });
