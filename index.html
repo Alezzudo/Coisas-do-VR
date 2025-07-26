@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catálogo Autônomo (Estudo de Paradigmas Frontend)</title>
+    <title>Catálogo Autônomo Real (Aplicação Electron - Consolidado)</title>
     <style>
         /* Variáveis de Cores */
         :root {
@@ -491,7 +491,7 @@
 </head>
 <body>
     <div id="app-container">
-        <h1>Catálogo Autônomo V.0.1 (Estudo de Paradigmas Frontend)</h1>
+        <h1>Catálogo Autônomo Real (Estudo de Aplicação Electron)</h1>
 
         <input type="text" id="search-bar" placeholder="Buscar por nome ou descrição...">
 
@@ -511,7 +511,7 @@
 
         <div id="drop-area">
             <p>Arraste e solte arquivos aqui para o Bibliotecário Autônomo processar...</p>
-            <small>(Simulação: arquivos NÃO são enviados ou processados realmente. Use para estudo da interface.)</small>
+            <small>(Agora, os arquivos SÃO lidos e processados localmente!)</small>
             <div id="loading-overlay">
                 <div class="loading-bar-container">
                     <div class="loading-bar"></div>
@@ -521,7 +521,7 @@
         </div>
 
         <button id="add-new-card-button">
-            Adicionar Item Manualmente (Ignora Bibliotecário)
+            Adicionar Item Manualmente (Ou Selecionar Arquivo)
         </button>
 
         <div id="cards-container">
@@ -543,9 +543,9 @@
             <label for="modal-description">Descrição:</label>
             <textarea id="modal-description" rows="4" placeholder="Detalhes do item (inferido ou digite)"></textarea>
 
-            <label for="modal-download-url">URL do Arquivo para Download:</label>
-            <input type="text" id="modal-download-url" placeholder="URL do arquivo (cole o link do Google Drive/Dropbox)">
-            <small style="color: #aaa;">(O arquivo não é realmente enviado ou hospedado por este "Catálogo" de estudo. Apenas o link é salvo.)</small>
+            <label for="modal-download-url">Caminho/URL do Arquivo para Download:</label>
+            <input type="text" id="modal-download-url" placeholder="Caminho local ou URL do arquivo" readonly>
+            <small style="color: #aaa;">(Se for um arquivo arrastado, este será o caminho local.)</small>
 
             <label for="modal-category">Categoria Inferida/Sugeria:</label>
             <select id="modal-category">
@@ -555,6 +555,7 @@
                 <option value="Outfits">Outfits</option>
                 <option value="Avatar Assets">Avatar Assets</option>
                 <option value="World Assets">World Assets</option>
+                <option value="Image Asset">Image Asset</option>
                 <option value="Uncategorized">Não Categorizado</option>
             </select>
 
@@ -563,7 +564,9 @@
     </div>
 
     <script>
-        // Array para armazenar os dados dos seus "cards"
+        // renderer.js - A Lógica da Interface (AGORA EMBUTIDA NO HTML)
+        // Agora acessamos as funções Node.js via 'window.electronAPI' expostas no preload.js
+
         let cards = [];
         let currentEditingCardId = null; 
 
@@ -587,9 +590,9 @@
         const modalDownloadUrlInput = document.getElementById('modal-download-url');
         const modalCategorySelect = document.getElementById('modal-category');
 
+
         // --- Funções de Inicialização e Carregamento ---
 
-        // Carrega os cards do localStorage ao iniciar
         function loadCards() {
             const storedCards = localStorage.getItem('autonomousCatalogCards');
             if (storedCards) {
@@ -597,26 +600,22 @@
             } else {
                 // Dados de exemplo para estudo se não houver nada salvo
                 cards = [
+                    // Agora os URLs de download podem ser caminhos de arquivo locais ou URLs http/https
                     { id: 'c1', imageUrl: 'https://via.placeholder.com/300x200/cc0000/ffffff?text=Cubo+Animado', title: 'Cubo Animado.zip', description: 'Um modelo 3D de um cubo com animações básicas. Perfeito para testes de física.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Models' },
                     { id: 'c2', imageUrl: 'https://via.placeholder.com/300x200/aa0000/ffffff?text=Floresta+Mundo', title: 'Floresta Magica.vrml', description: 'Cenário de floresta densa com elementos interativos e som ambiente.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Worlds' },
                     { id: 'c3', imageUrl: 'https://via.placeholder.com/300x200/880000/ffffff?text=Espada+Prop', title: 'Espada Lendaria.fbx', description: 'Um prop de espada detalhado com texturas em alta resolução.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Props' },
-                    { id: 'c4', imageUrl: 'https://via.placeholder.com/300x200/660000/ffffff?text=Roupa+Cyberpunk', title: 'Roupa Cyberpunk.unitypackage', description: 'Um conjunto de roupas futurista para avatares femininos.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Outfits' },
-                    { id: 'c5', imageUrl: 'https://via.placeholder.com/300x200/440000/ffffff?text=Oculos+Asset', title: 'Oculos Estilosos.blend', description: 'Acessório de óculos com 5 variações de cor para avatares.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Avatar Assets' },
-                    { id: 'c6', imageUrl: 'https://via.placeholder.com/300x200/220000/ffffff?text=Arvore+Asset', title: 'Arvore Fantastica.glb', description: 'Modelo de árvore estilizada com folhagem dinâmica para mundos.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'World Assets' }
                 ];
                 saveCards(); 
             }
             renderCards();
         }
 
-        // Salva os cards no localStorage
         function saveCards() {
             localStorage.setItem('autonomousCatalogCards', JSON.stringify(cards));
         }
 
         // --- Funções de Renderização e Filtro ---
 
-        // Renderiza os cards na tela
         function renderCards() {
             cardsContainer.innerHTML = '';
             const searchTerm = searchBar.value.toLowerCase();
@@ -672,10 +671,9 @@
 
         // --- Funções do Modal (Adicionar/Editar) ---
 
-        // Abre o modal
-        function openModal(cardId = null) {
+        function openModal(cardData = null) {
             cardModal.style.display = 'flex';
-            currentEditingCardId = cardId;
+            currentEditingCardId = cardData ? cardData.id : null;
 
             // Limpa o formulário
             modalImageUrlInput.value = '';
@@ -684,50 +682,47 @@
             modalTitleInput.value = '';
             modalDescriptionInput.value = '';
             modalDownloadUrlInput.value = '';
-            modalCategorySelect.value = 'Uncategorized'; // Categoria padrão ao abrir modal
+            modalCategorySelect.value = 'Uncategorized';
             
-            if (cardId) {
-                const cardToEdit = cards.find(c => c.id === cardId);
-                if (cardToEdit) {
-                    modalImageUrlInput.value = cardToEdit.imageUrl;
-                    modalImagePreview.src = cardToEdit.imageUrl;
-                    modalImagePreview.style.display = 'block';
-                    modalTitleInput.value = cardToEdit.title;
-                    modalDescriptionInput.value = cardToEdit.description;
-                    modalDownloadUrlInput.value = cardToEdit.downloadUrl;
-                    modalCategorySelect.value = cardToEdit.category;
-                }
+            if (cardData) {
+                modalImageUrlInput.value = cardData.imageUrl;
+                modalImagePreview.src = cardData.imageUrl;
+                modalImagePreview.style.display = 'block';
+                modalTitleInput.value = cardData.title;
+                modalDescriptionInput.value = cardData.description;
+                modalDownloadUrlInput.value = cardData.downloadUrl;
+                modalCategorySelect.value = cardData.category;
             }
         }
 
-        // Fecha o modal
         function closeModal() {
             cardModal.style.display = 'none';
             currentEditingCardId = null;
         }
 
-        // Salva o card (novo ou editado)
         function saveCard() {
             const imageUrl = modalImageUrlInput.value.trim();
             const title = modalTitleInput.value.trim();
             const description = modalDescriptionInput.value.trim();
-            const downloadUrl = modalDownloadUrlInput.value.trim();
+            const downloadUrl = modalDownloadUrlInput.value.trim(); // Pode ser file://path ou http://url
             const category = modalCategorySelect.value;
 
-            if (!imageUrl || !title || !description || !downloadUrl) {
-                alert('Por favor, preencha todos os campos do item!');
+            if (!title || !description || !downloadUrl) {
+                alert('Por favor, preencha Título, Descrição e Caminho/URL de Download.');
                 return;
             }
+            // Se a URL da imagem não for fornecida, tenta usar uma placeholder genérica
+            const finalImageUrl = imageUrl || 'https://via.placeholder.com/300x200/440000/FFFFFF?text=Item';
 
             if (currentEditingCardId) {
                 const index = cards.findIndex(c => c.id === currentEditingCardId);
                 if (index !== -1) {
-                    cards[index] = { ...cards[index], imageUrl, title, description, downloadUrl, category };
+                    cards[index] = { ...cards[index], imageUrl: finalImageUrl, title, description, downloadUrl, category };
                 }
             } else {
                 const newCard = {
                     id: 'c' + Date.now(),
-                    imageUrl,
+                    imageUrl: finalImageUrl,
                     title,
                     description,
                     downloadUrl,
@@ -741,86 +736,51 @@
             closeModal();
         }
 
-        // --- Simulação de Carregamento/Processamento ---
+        // --- Processamento Real (Comunicando com main.js via electronAPI) ---
 
-        async function simulateProcessing(fileName, fileType) {
+        async function startProcessingAnimation(statusText, progress) {
+            loadingBar.style.width = `${progress}%`;
+            loadingStatus.textContent = statusText;
+            // Pequena pausa para a animação ser visível
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        async function processFileViaElectron(filePath) {
             loadingOverlay.classList.add('visible');
-            loadingBar.style.width = '0%';
-            loadingStatus.textContent = 'Iniciando processamento do arquivo...';
+            
+            await startProcessingAnimation('Iniciando comunicação com o processo principal...', 5);
+            
+            // HINT: Aqui, o frontend (renderer.js) invoca a função 'processFile' no preload.js,
+            // que por sua vez se comunica com o main.js. É assim que o poder do Node.js é usado.
+            const result = await window.electronAPI.processFile(filePath);
 
-            let progress = 0;
-            const steps = [
-                { status: '0%', message: `Analisando: "${fileName}"... (10%)`, delay: 500 },
-                { status: '20%', message: 'Extraindo metadados básicos... (20%)', delay: 800 },
-                { status: '40%', message: 'Inferindo tipo e categoria... (40%)', delay: 1200 },
-                { status: '60%', message: 'Simulando busca em Google/Booth/VRModels... (60%)', delay: 1800 }, // HINT: Aqui um backend chamaria APIs externas
-                { status: '80%', message: 'Gerando pré-visualização e link de download... (80%)', delay: 1000 }, // HINT: Aqui um backend geraria o URL público
-                { status: '100%', message: 'Processamento concluído. Catalogando...', delay: 500 }
-            ];
+            if (result.success) {
+                await startProcessingAnimation('Dados recebidos. Preparando para catalogar...', 100);
+                await new Promise(resolve => setTimeout(resolve, 500)); // Pequena pausa final
+                loadingOverlay.classList.remove('visible');
 
-            for (let i = 0; i < steps.length; i++) {
-                await new Promise(resolve => setTimeout(resolve, steps[i].delay));
-                loadingBar.style.width = steps[i].status;
-                loadingStatus.textContent = steps[i].message;
+                openModal(result.data); // Abre o modal com os dados reais inferidos
+            } else {
+                await startProcessingAnimation(`Erro: ${result.error}`, 0);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                loadingOverlay.classList.remove('visible');
+                alert(`Falha ao processar arquivo: ${result.error}`);
             }
-
-            await new Promise(resolve => setTimeout(resolve, 500)); // Pequena pausa final
-            loadingOverlay.classList.remove('visible');
-
-            // --- Dados "Inferidos" (Simulação) ---
-            const baseName = fileName.split('.').slice(0, -1).join('.');
-            let inferredCategory = 'Uncategorized';
-            let inferredDescription = `Um item adicionado automaticamente pelo Bibliotecário Autônomo. Nome original: ${fileName}`;
-            let inferredImageUrl = 'https://via.placeholder.com/300x200/440000/FFFFFF?text=Item+Catalogado';
-
-            // Lógica de inferência SIMULADA baseada no nome do arquivo
-            if (baseName.toLowerCase().includes('model') || fileType.includes('gltf') || fileType.includes('fbx') || fileType.includes('obj')) {
-                inferredCategory = 'Models';
-                inferredDescription = `Provavelmente um modelo 3D: ${baseName}.`;
-                inferredImageUrl = 'https://via.placeholder.com/300x200/660000/FFFFFF?text=MODEL';
-            } else if (baseName.toLowerCase().includes('world') || baseName.toLowerCase().includes('scene')) {
-                inferredCategory = 'Worlds';
-                inferredDescription = `Provavelmente um cenário ou mundo virtual: ${baseName}.`;
-                inferredImageUrl = 'https://via.placeholder.com/300x200/880000/FFFFFF?text=WORLD';
-            } else if (baseName.toLowerCase().includes('prop') || baseName.toLowerCase().includes('item')) {
-                inferredCategory = 'Props';
-                inferredDescription = `Provavelmente um item ou prop para cenários: ${baseName}.`;
-                inferredImageUrl = 'https://via.placeholder.com/300x200/aa0000/FFFFFF?text=PROP';
-            } else if (baseName.toLowerCase().includes('outfit') || baseName.toLowerCase().includes('costume')) {
-                inferredCategory = 'Outfits';
-                inferredDescription = `Provavelmente uma roupa ou vestimenta para avatares: ${baseName}.`;
-                inferredImageUrl = 'https://via.placeholder.com/300x200/bb0000/FFFFFF?text=OUTFIT';
-            } else if (baseName.toLowerCase().includes('avatar asset') || baseName.toLowerCase().includes('eye') || baseName.toLowerCase().includes('hair')) {
-                inferredCategory = 'Avatar Assets';
-                inferredDescription = `Provavelmente um asset para avatar: ${baseName}.`;
-                inferredImageUrl = 'https://via.placeholder.com/300x200/cc0000/FFFFFF?text=AVATAR+ASSET';
-            } else if (baseName.toLowerCase().includes('world asset') || baseName.toLowerCase().includes('tree') || baseName.toLowerCase().includes('rock')) {
-                inferredCategory = 'World Assets';
-                inferredDescription = `Provavelmente um asset para mundo: ${baseName}.`;
-                inferredImageUrl = 'https://via.placeholder.com/300x200/ee0000/FFFFFF?text=WORLD+ASSET';
-            }
-
-
-            // Pré-preenche o modal com dados "inferidos"
-            modalTitleInput.value = baseName;
-            modalDescriptionInput.value = inferredDescription;
-            modalImageUrlInput.value = inferredImageUrl;
-            modalImagePreview.src = inferredImageUrl;
-            modalImagePreview.style.display = 'block';
-            modalCategorySelect.value = inferredCategory;
-
-            // HINT: Em um sistema real, o modalDownloadUrlInput seria preenchido com o URL REAL do arquivo
-            // após o upload para o servidor. Aqui é uma URL de exemplo.
-            modalDownloadUrlInput.value = `https://seuservidor.com/downloads/${fileName}`; 
-
-            openModal(); // Abre o modal para revisão e salvamento
         }
 
 
         // --- Funções de Eventos ---
 
-        // Evento de clique para adicionar novo card manualmente
-        addNewCardButton.addEventListener('click', () => openModal());
+        // Evento de clique para adicionar novo card manualmente ou selecionar arquivo
+        addNewCardButton.addEventListener('click', async () => {
+            // Agora o botão pode tanto abrir o modal vazio quanto a caixa de diálogo de arquivo
+            const selectedFilePath = await window.electronAPI.openFileDialog();
+            if (selectedFilePath) {
+                await processFileViaElectron(selectedFilePath);
+            } else {
+                openModal(); // Abre o modal vazio se nenhum arquivo for selecionado
+            }
+        });
 
         // Evento para fechar modal
         closeModalButton.addEventListener('click', closeModal);
@@ -849,7 +809,10 @@
             // Editar card
             if (event.target.classList.contains('edit-button')) {
                 const cardId = event.target.dataset.id;
-                openModal(cardId);
+                const cardToEdit = cards.find(c => c.id === cardId);
+                if (cardToEdit) {
+                    openModal(cardToEdit);
+                }
             }
             // Deletar card
             if (event.target.classList.contains('delete-button')) {
@@ -866,17 +829,17 @@
                 const cardId = cardElement.dataset.id;
                 const card = cards.find(c => c.id === cardId);
                 if (card && card.downloadUrl) {
-                    // HINT: Em um sistema real, o downloadUrl seria o link para o arquivo no seu servidor de backend/armazenamento.
-                    // A propriedade `download` no `<a>` sugere o nome do arquivo.
+                    // HINT: Se o downloadUrl for um caminho de arquivo local (file://), o Electron pode abri-lo diretamente.
+                    // Para downloads HTTP/HTTPS, funcionará como um navegador normal.
                     const link = document.createElement('a');
                     link.href = card.downloadUrl;
-                    link.download = card.title;
+                    link.download = card.title; // Sugere o nome do arquivo para download
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                    alert(`Iniciando download de "${card.title}"... (Simulação)`);
+                    alert(`Tentando abrir/baixar: "${card.title}" de ${card.downloadUrl}`);
                 } else {
-                    alert('URL de download não disponível para este item. (Estudo: backend necessário para hospedagem)');
+                    alert('URL de download não disponível para este item.');
                 }
             }
         });
@@ -1015,7 +978,7 @@
             }
         }
         
-        // --- Eventos da Área de Arrastar/Soltar (simulação de upload e processamento) ---
+        // --- Eventos da Área de Arrastar/Soltar (AGORA REALMENTE LÊ O ARQUIVO LOCAL) ---
         dropArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropArea.classList.add('highlight');
@@ -1032,11 +995,9 @@
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const file = files[0];
-                // HINT: Aqui, em um sistema real, o arquivo 'file' seria enviado via AJAX/fetch para um backend.
-                // O backend então processaria, armazenaria e devolveria metadados e um URL público.
-                // O uso do processamento local aqui é APENAS para simular a barra de loading e pré-preencher o modal.
-
-                await simulateProcessing(file.name, file.type);
+                // HINT: Passamos o caminho ABSOLUTO do arquivo para o processo principal.
+                // É o main.js (ambiente Node.js) que terá permissão para lê-lo.
+                await processFileViaElectron(file.path);
             }
         });
 
