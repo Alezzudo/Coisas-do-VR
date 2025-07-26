@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baú Digital Hipotético: Estudo Avançado</title>
+    <title>Catálogo Autônomo (Estudo de Paradigmas Frontend)</title>
     <style>
         /* Variáveis de Cores */
         :root {
@@ -18,6 +18,7 @@
             --hover-glow: 0 0 25px rgba(255, 0, 0, 0.7), 0 0 10px rgba(255, 0, 0, 0.5);
             --tab-active-bg: #ff4d4d;
             --tab-hover-bg: #aa0000;
+            --loading-bar-color: #00ff00; /* Verde para a barra de loading */
         }
 
         /* Estilos Globais e Fundo */
@@ -117,7 +118,7 @@
             flex-wrap: wrap;
             justify-content: center;
             gap: 10px;
-            margin-top: -15px; /* Puxa para cima para ficar mais próximo da aba Assets */
+            margin-top: -15px;
             margin-bottom: 20px;
             padding: 5px 0;
             border-top: 1px dashed var(--card-border);
@@ -129,10 +130,10 @@
         }
         #assets-subtabs.visible {
             opacity: 1;
-            max-height: 50px; /* Altura para mostrar as sub-abas */
+            max-height: 50px;
         }
         .sub-tab-button {
-            background-color: #0f0f0f; /* Cor mais escura para sub-aba */
+            background-color: #050505; /* Cor mais escura para sub-aba */
             color: var(--text-light);
             padding: 8px 15px;
             border: 1px dashed #660000;
@@ -151,7 +152,7 @@
         }
 
         /* Área de Arrastar/Soltar e Adicionar Novo */
-        #drop-area, #add-new-card-button {
+        #drop-area {
             background-color: var(--card-bg);
             border: 2px dashed var(--card-border);
             border-radius: 12px;
@@ -163,6 +164,12 @@
             transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
             box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
             margin-bottom: 30px;
+            position: relative; /* Para o loader */
+            min-height: 100px; /* Garante que a área não suma */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
 
         #drop-area.highlight {
@@ -180,23 +187,82 @@
             font-size: 0.8em;
             color: #aaa;
         }
+
+        /* Loader de Processamento (simulado) */
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+            z-index: 10;
+        }
+        #loading-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .loading-bar-container {
+            width: 80%;
+            height: 20px;
+            background-color: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+        .loading-bar {
+            height: 100%;
+            width: 0%;
+            background-color: var(--loading-bar-color);
+            border-radius: 10px;
+            transition: width 0.3s ease-in-out;
+        }
+        #loading-status {
+            color: var(--text-accent);
+            font-size: 1.1em;
+            text-shadow: 0 0 5px rgba(255,0,0,0.5);
+        }
+
+        /* Botão para Adicionar Manualmente */
+        #add-new-card-button {
+            background-color: var(--card-bg);
+            border: 2px dashed var(--card-border);
+            border-radius: 12px;
+            color: var(--text-accent);
+            padding: 15px 30px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
+            margin-top: -15px; /* Ajuste para ficar melhor com o drop-area */
+            align-self: center;
+        }
         #add-new-card-button:hover {
             background-color: #2a0000;
             border-color: var(--text-accent);
-            box-shadow: 0 0 25px rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
         }
 
         /* Formulário de Adição/Edição de Card (Modal) */
         .modal {
-            display: none; /* Escondido por padrão */
-            position: fixed; /* Fica por cima de tudo */
-            z-index: 1; /* Nível mais alto */
+            display: none;
+            position: fixed;
+            z-index: 100; /* Mais alto que o loader */
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto; /* Permite scroll se o conteúdo for grande */
-            background-color: rgba(0,0,0,0.8); /* Fundo semi-transparente escuro */
+            overflow: auto;
+            background-color: rgba(0,0,0,0.8);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -268,28 +334,11 @@
             font-size: 1.1em;
             transition: background-color 0.3s ease, box-shadow 0.3s ease;
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.4);
-            align-self: flex-end; /* Alinha o botão para a direita */
+            align-self: flex-end;
         }
         .modal-content button:hover {
             background-color: var(--button-hover-bg);
             box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
-        }
-        .modal-content input[type="file"] {
-            display: none; /* Esconde o input de arquivo padrão */
-        }
-        .custom-file-upload {
-            border: 1px solid var(--card-border);
-            display: inline-block;
-            padding: 10px 15px;
-            cursor: pointer;
-            border-radius: 6px;
-            background-color: #050505;
-            color: var(--text-accent);
-            transition: background-color 0.3s ease;
-            margin-bottom: 15px;
-        }
-        .custom-file-upload:hover {
-            background-color: #2a0a0a;
         }
         #modal-image-preview {
             max-width: 100%;
@@ -305,28 +354,28 @@
         #cards-container {
             display: flex;
             flex-wrap: wrap;
-            gap: 30px; /* Espaço entre os cards */
+            gap: 30px;
             justify-content: center;
-            min-height: 200px; /* Para que a área não encolha sem cards */
+            min-height: 200px;
         }
 
         /* Estilos dos Cards */
         .card {
             background-color: var(--card-bg);
             border-radius: 12px;
-            box-shadow: 0 8px 16px var(--shadow-color); /* Sombra mais profunda */
-            width: 300px; /* Largura fixa do card */
-            overflow: hidden; /* Garante que a imagem não saia do card */
+            box-shadow: 0 8px 16px var(--shadow-color);
+            width: 300px;
+            overflow: hidden;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid var(--card-border); /* Borda sutil */
+            border: 1px solid var(--card-border);
             display: flex;
-            flex-direction: column; /* Organiza conteúdo em coluna */
-            position: relative; /* Para o botão de editar/excluir */
-            cursor: grab; /* Indica que é arrastável */
+            flex-direction: column;
+            position: relative;
+            cursor: grab;
         }
         .card:hover {
-            transform: translateY(-8px); /* Efeito de flutuação ao passar o mouse */
-            box-shadow: var(--hover-glow); /* Brilho intenso */
+            transform: translateY(-8px);
+            box-shadow: var(--hover-glow);
         }
 
         .card-image-wrapper {
@@ -341,28 +390,28 @@
         .card-image {
             width: 100%;
             height: 100%;
-            object-fit: cover; /* Faz a imagem cobrir o espaço sem distorcer */
+            object-fit: cover;
             transition: transform 0.3s ease;
         }
         .card:hover .card-image {
-             transform: scale(1.05); /* Pequeno zoom na imagem */
+             transform: scale(1.05);
         }
 
         .card-content {
             padding: 20px;
-            flex-grow: 1; /* Permite que o conteúdo expanda */
+            flex-grow: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* Espaça os elementos internos */
+            justify-content: space-between;
         }
 
         .card-title {
             font-size: 1.6em;
             margin-top: 0;
             margin-bottom: 10px;
-            color: var(--text-accent); /* Cor do título */
+            color: var(--text-accent);
             text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
-            cursor: pointer; /* Indica que é clicável */
+            cursor: pointer; /* Indica que é clicável para download */
         }
         .card-title:hover {
             text-decoration: underline;
@@ -371,7 +420,7 @@
         .card-description {
             font-size: 0.95em;
             line-height: 1.5;
-            color: var(--text-light); /* Cor da descrição */
+            color: var(--text-light);
             margin-bottom: 15px;
         }
 
@@ -428,7 +477,7 @@
                 font-size: 0.8em;
             }
             .card {
-                width: 100%; /* Ocupa mais largura em telas menores */
+                width: 100%;
             }
             #drop-area, #add-new-card-button {
                 padding: 20px;
@@ -442,7 +491,7 @@
 </head>
 <body>
     <div id="app-container">
-        <h1>Baú Digital da Vovó (Estudo Hipotético)</h1>
+        <h1>Catálogo Autônomo V.0.1 (Estudo de Paradigmas Frontend)</h1>
 
         <input type="text" id="search-bar" placeholder="Buscar por nome ou descrição...">
 
@@ -461,12 +510,18 @@
         </div>
 
         <div id="drop-area">
-            <p>Arraste e solte arquivos aqui para "criar" um novo card...</p>
-            <small>(Apenas simulação visual. Para upload real, use o botão abaixo)</small>
+            <p>Arraste e solte arquivos aqui para o Bibliotecário Autônomo processar...</p>
+            <small>(Simulação: arquivos NÃO são enviados ou processados realmente. Use para estudo da interface.)</small>
+            <div id="loading-overlay">
+                <div class="loading-bar-container">
+                    <div class="loading-bar"></div>
+                </div>
+                <p id="loading-status">Iniciando processamento...</p>
+            </div>
         </div>
 
         <button id="add-new-card-button">
-            Adicionar Novo Item ao Baú Digital
+            Adicionar Item Manualmente (Ignora Bibliotecário)
         </button>
 
         <div id="cards-container">
@@ -476,29 +531,23 @@
     <div id="card-modal" class="modal">
         <div class="modal-content">
             <span class="close-button">&times;</span>
-            <h2>Adicionar/Editar Item</h2>
+            <h2>Detalhes do Item (Bibliotecário Sugere)</h2>
 
             <label for="modal-image-url">URL da Imagem de Capa:</label>
-            <input type="text" id="modal-image-url" placeholder="Cole o URL da imagem aqui">
+            <input type="text" id="modal-image-url" placeholder="URL da imagem (pode ser inferida)">
             <img id="modal-image-preview" src="" alt="Pré-visualização da Imagem" style="display: none;">
-            <p style="text-align: center; color: var(--text-accent);">ou</p>
-            <label for="modal-image-file" class="custom-file-upload">
-                Clique para "simular upload" de imagem
-            </label>
-            <input type="file" id="modal-image-file" accept="image/*">
-
-
+            
             <label for="modal-title">Título:</label>
-            <input type="text" id="modal-title" placeholder="Nome do arquivo ou item">
+            <input type="text" id="modal-title" placeholder="Nome do arquivo ou item (inferido)">
 
             <label for="modal-description">Descrição:</label>
-            <textarea id="modal-description" rows="4" placeholder="Detalhes do item..."></textarea>
+            <textarea id="modal-description" rows="4" placeholder="Detalhes do item (inferido ou digite)"></textarea>
 
             <label for="modal-download-url">URL do Arquivo para Download:</label>
-            <input type="text" id="modal-download-url" placeholder="Cole o URL do seu arquivo (ex: Google Drive, Dropbox)">
-            <small style="color: #aaa;">(O arquivo não é realmente enviado, apenas o link é salvo)</small>
+            <input type="text" id="modal-download-url" placeholder="URL do arquivo (cole o link do Google Drive/Dropbox)">
+            <small style="color: #aaa;">(O arquivo não é realmente enviado ou hospedado por este "Catálogo" de estudo. Apenas o link é salvo.)</small>
 
-            <label for="modal-category">Categoria:</label>
+            <label for="modal-category">Categoria Inferida/Sugeria:</label>
             <select id="modal-category">
                 <option value="Models">Models</option>
                 <option value="Worlds">Worlds</option>
@@ -506,29 +555,32 @@
                 <option value="Outfits">Outfits</option>
                 <option value="Avatar Assets">Avatar Assets</option>
                 <option value="World Assets">World Assets</option>
+                <option value="Uncategorized">Não Categorizado</option>
             </select>
 
-            <button id="save-card-button">Salvar Item</button>
+            <button id="save-card-button">Salvar Item no Catálogo</button>
         </div>
     </div>
 
     <script>
         // Array para armazenar os dados dos seus "cards"
         let cards = [];
-        let currentEditingCardId = null; // Para saber qual card está sendo editado
+        let currentEditingCardId = null; 
 
         // Referências aos elementos do DOM
         const searchBar = document.getElementById('search-bar');
         const categoryTabs = document.getElementById('category-tabs');
         const assetsSubtabs = document.getElementById('assets-subtabs');
         const dropArea = document.getElementById('drop-area');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingBar = document.getElementById('loading-bar');
+        const loadingStatus = document.getElementById('loading-status');
         const addNewCardButton = document.getElementById('add-new-card-button');
         const cardsContainer = document.getElementById('cards-container');
         const cardModal = document.getElementById('card-modal');
         const closeModalButton = document.querySelector('.modal .close-button');
         const saveCardButton = document.getElementById('save-card-button');
         const modalImageUrlInput = document.getElementById('modal-image-url');
-        const modalImageFileInput = document.getElementById('modal-image-file');
         const modalImagePreview = document.getElementById('modal-image-preview');
         const modalTitleInput = document.getElementById('modal-title');
         const modalDescriptionInput = document.getElementById('modal-description');
@@ -539,34 +591,34 @@
 
         // Carrega os cards do localStorage ao iniciar
         function loadCards() {
-            const storedCards = localStorage.getItem('digitalVaultCards');
+            const storedCards = localStorage.getItem('autonomousCatalogCards');
             if (storedCards) {
                 cards = JSON.parse(storedCards);
             } else {
                 // Dados de exemplo para estudo se não houver nada salvo
                 cards = [
-                    { id: 'c1', imageUrl: 'https://via.placeholder.com/300x200/cc0000/ffffff?text=Cubo+Model', title: 'Cubo Animado', description: 'Um modelo 3D de um cubo com animações básicas. Perfeito para testes de física.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Models' },
-                    { id: 'c2', imageUrl: 'https://via.placeholder.com/300x200/aa0000/ffffff?text=Floresta+Mundo', title: 'Floresta Mágica', description: 'Cenário de floresta densa com elementos interativos e som ambiente.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Worlds' },
-                    { id: 'c3', imageUrl: 'https://via.placeholder.com/300x200/880000/ffffff?text=Espada+Prop', title: 'Espada Lendária', description: 'Um prop de espada detalhado com texturas em alta resolução.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Props' },
-                    { id: 'c4', imageUrl: 'https://via.placeholder.com/300x200/660000/ffffff?text=Roupa+Cyberpunk', title: 'Roupa Cyberpunk', description: 'Um conjunto de roupas futurista para avatares femininos.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Outfits' },
-                    { id: 'c5', imageUrl: 'https://via.placeholder.com/300x200/440000/ffffff?text=Oculos+Asset', title: 'Óculos Estilosos', description: 'Acessório de óculos com 5 variações de cor para avatares.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Avatar Assets' },
-                    { id: 'c6', imageUrl: 'https://via.placeholder.com/300x200/220000/ffffff?text=Arvore+Asset', title: 'Árvore Fantástica', description: 'Modelo de árvore estilizada com folhagem dinâmica para mundos.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'World Assets' }
+                    { id: 'c1', imageUrl: 'https://via.placeholder.com/300x200/cc0000/ffffff?text=Cubo+Animado', title: 'Cubo Animado.zip', description: 'Um modelo 3D de um cubo com animações básicas. Perfeito para testes de física.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Models' },
+                    { id: 'c2', imageUrl: 'https://via.placeholder.com/300x200/aa0000/ffffff?text=Floresta+Mundo', title: 'Floresta Magica.vrml', description: 'Cenário de floresta densa com elementos interativos e som ambiente.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Worlds' },
+                    { id: 'c3', imageUrl: 'https://via.placeholder.com/300x200/880000/ffffff?text=Espada+Prop', title: 'Espada Lendaria.fbx', description: 'Um prop de espada detalhado com texturas em alta resolução.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Props' },
+                    { id: 'c4', imageUrl: 'https://via.placeholder.com/300x200/660000/ffffff?text=Roupa+Cyberpunk', title: 'Roupa Cyberpunk.unitypackage', description: 'Um conjunto de roupas futurista para avatares femininos.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'Outfits' },
+                    { id: 'c5', imageUrl: 'https://via.placeholder.com/300x200/440000/ffffff?text=Oculos+Asset', title: 'Oculos Estilosos.blend', description: 'Acessório de óculos com 5 variações de cor para avatares.', downloadUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', category: 'Avatar Assets' },
+                    { id: 'c6', imageUrl: 'https://via.placeholder.com/300x200/220000/ffffff?text=Arvore+Asset', title: 'Arvore Fantastica.glb', description: 'Modelo de árvore estilizada com folhagem dinâmica para mundos.', downloadUrl: 'https://www.africau.edu/images/default/sample.pdf', category: 'World Assets' }
                 ];
-                saveCards(); // Salva os dados de exemplo para futuras visitas
+                saveCards(); 
             }
             renderCards();
         }
 
         // Salva os cards no localStorage
         function saveCards() {
-            localStorage.setItem('digitalVaultCards', JSON.stringify(cards));
+            localStorage.setItem('autonomousCatalogCards', JSON.stringify(cards));
         }
 
         // --- Funções de Renderização e Filtro ---
 
         // Renderiza os cards na tela
         function renderCards() {
-            cardsContainer.innerHTML = ''; // Limpa o container
+            cardsContainer.innerHTML = '';
             const searchTerm = searchBar.value.toLowerCase();
             const activeCategory = document.querySelector('.tab-button.active')?.dataset.category || 'all';
             const activeSubCategory = document.querySelector('.sub-tab-button.active')?.dataset.category || null;
@@ -597,7 +649,7 @@
                 const cardElement = document.createElement('div');
                 cardElement.className = 'card';
                 cardElement.dataset.id = card.id;
-                cardElement.draggable = true; // Torna o card arrastável
+                cardElement.draggable = true;
 
                 cardElement.innerHTML = `
                     <div class="card-image-wrapper">
@@ -615,26 +667,25 @@
                 `;
                 cardsContainer.appendChild(cardElement);
             });
-            addDragAndDropListeners(); // Adiciona os listeners de arrastar/soltar
+            addDragAndDropListeners();
         }
 
         // --- Funções do Modal (Adicionar/Editar) ---
 
         // Abre o modal
         function openModal(cardId = null) {
-            cardModal.style.display = 'flex'; // Exibe o modal
+            cardModal.style.display = 'flex';
             currentEditingCardId = cardId;
 
             // Limpa o formulário
             modalImageUrlInput.value = '';
-            modalImageFileInput.value = ''; // Limpa o input de arquivo
             modalImagePreview.style.display = 'none';
             modalImagePreview.src = '';
             modalTitleInput.value = '';
             modalDescriptionInput.value = '';
             modalDownloadUrlInput.value = '';
-            modalCategorySelect.value = 'Models'; // Categoria padrão
-
+            modalCategorySelect.value = 'Uncategorized'; // Categoria padrão ao abrir modal
+            
             if (cardId) {
                 const cardToEdit = cards.find(c => c.id === cardId);
                 if (cardToEdit) {
@@ -651,7 +702,7 @@
 
         // Fecha o modal
         function closeModal() {
-            cardModal.style.display = 'none'; // Esconde o modal
+            cardModal.style.display = 'none';
             currentEditingCardId = null;
         }
 
@@ -664,20 +715,18 @@
             const category = modalCategorySelect.value;
 
             if (!imageUrl || !title || !description || !downloadUrl) {
-                alert('Por favor, preencha todos os campos!');
+                alert('Por favor, preencha todos os campos do item!');
                 return;
             }
 
             if (currentEditingCardId) {
-                // Edita um card existente
                 const index = cards.findIndex(c => c.id === currentEditingCardId);
                 if (index !== -1) {
                     cards[index] = { ...cards[index], imageUrl, title, description, downloadUrl, category };
                 }
             } else {
-                // Adiciona um novo card
                 const newCard = {
-                    id: 'c' + Date.now(), // ID único
+                    id: 'c' + Date.now(),
                     imageUrl,
                     title,
                     description,
@@ -692,9 +741,85 @@
             closeModal();
         }
 
+        // --- Simulação de Carregamento/Processamento ---
+
+        async function simulateProcessing(fileName, fileType) {
+            loadingOverlay.classList.add('visible');
+            loadingBar.style.width = '0%';
+            loadingStatus.textContent = 'Iniciando processamento do arquivo...';
+
+            let progress = 0;
+            const steps = [
+                { status: '0%', message: `Analisando: "${fileName}"... (10%)`, delay: 500 },
+                { status: '20%', message: 'Extraindo metadados básicos... (20%)', delay: 800 },
+                { status: '40%', message: 'Inferindo tipo e categoria... (40%)', delay: 1200 },
+                { status: '60%', message: 'Simulando busca em Google/Booth/VRModels... (60%)', delay: 1800 }, // HINT: Aqui um backend chamaria APIs externas
+                { status: '80%', message: 'Gerando pré-visualização e link de download... (80%)', delay: 1000 }, // HINT: Aqui um backend geraria o URL público
+                { status: '100%', message: 'Processamento concluído. Catalogando...', delay: 500 }
+            ];
+
+            for (let i = 0; i < steps.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, steps[i].delay));
+                loadingBar.style.width = steps[i].status;
+                loadingStatus.textContent = steps[i].message;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 500)); // Pequena pausa final
+            loadingOverlay.classList.remove('visible');
+
+            // --- Dados "Inferidos" (Simulação) ---
+            const baseName = fileName.split('.').slice(0, -1).join('.');
+            let inferredCategory = 'Uncategorized';
+            let inferredDescription = `Um item adicionado automaticamente pelo Bibliotecário Autônomo. Nome original: ${fileName}`;
+            let inferredImageUrl = 'https://via.placeholder.com/300x200/440000/FFFFFF?text=Item+Catalogado';
+
+            // Lógica de inferência SIMULADA baseada no nome do arquivo
+            if (baseName.toLowerCase().includes('model') || fileType.includes('gltf') || fileType.includes('fbx') || fileType.includes('obj')) {
+                inferredCategory = 'Models';
+                inferredDescription = `Provavelmente um modelo 3D: ${baseName}.`;
+                inferredImageUrl = 'https://via.placeholder.com/300x200/660000/FFFFFF?text=MODEL';
+            } else if (baseName.toLowerCase().includes('world') || baseName.toLowerCase().includes('scene')) {
+                inferredCategory = 'Worlds';
+                inferredDescription = `Provavelmente um cenário ou mundo virtual: ${baseName}.`;
+                inferredImageUrl = 'https://via.placeholder.com/300x200/880000/FFFFFF?text=WORLD';
+            } else if (baseName.toLowerCase().includes('prop') || baseName.toLowerCase().includes('item')) {
+                inferredCategory = 'Props';
+                inferredDescription = `Provavelmente um item ou prop para cenários: ${baseName}.`;
+                inferredImageUrl = 'https://via.placeholder.com/300x200/aa0000/FFFFFF?text=PROP';
+            } else if (baseName.toLowerCase().includes('outfit') || baseName.toLowerCase().includes('costume')) {
+                inferredCategory = 'Outfits';
+                inferredDescription = `Provavelmente uma roupa ou vestimenta para avatares: ${baseName}.`;
+                inferredImageUrl = 'https://via.placeholder.com/300x200/bb0000/FFFFFF?text=OUTFIT';
+            } else if (baseName.toLowerCase().includes('avatar asset') || baseName.toLowerCase().includes('eye') || baseName.toLowerCase().includes('hair')) {
+                inferredCategory = 'Avatar Assets';
+                inferredDescription = `Provavelmente um asset para avatar: ${baseName}.`;
+                inferredImageUrl = 'https://via.placeholder.com/300x200/cc0000/FFFFFF?text=AVATAR+ASSET';
+            } else if (baseName.toLowerCase().includes('world asset') || baseName.toLowerCase().includes('tree') || baseName.toLowerCase().includes('rock')) {
+                inferredCategory = 'World Assets';
+                inferredDescription = `Provavelmente um asset para mundo: ${baseName}.`;
+                inferredImageUrl = 'https://via.placeholder.com/300x200/ee0000/FFFFFF?text=WORLD+ASSET';
+            }
+
+
+            // Pré-preenche o modal com dados "inferidos"
+            modalTitleInput.value = baseName;
+            modalDescriptionInput.value = inferredDescription;
+            modalImageUrlInput.value = inferredImageUrl;
+            modalImagePreview.src = inferredImageUrl;
+            modalImagePreview.style.display = 'block';
+            modalCategorySelect.value = inferredCategory;
+
+            // HINT: Em um sistema real, o modalDownloadUrlInput seria preenchido com o URL REAL do arquivo
+            // após o upload para o servidor. Aqui é uma URL de exemplo.
+            modalDownloadUrlInput.value = `https://seuservidor.com/downloads/${fileName}`; 
+
+            openModal(); // Abre o modal para revisão e salvamento
+        }
+
+
         // --- Funções de Eventos ---
 
-        // Evento de clique para adicionar novo card
+        // Evento de clique para adicionar novo card manualmente
         addNewCardButton.addEventListener('click', () => openModal());
 
         // Evento para fechar modal
@@ -708,7 +833,7 @@
         // Evento para salvar card no modal
         saveCardButton.addEventListener('click', saveCard);
 
-        // Pré-visualização da imagem no modal (para URL e simulação de arquivo)
+        // Pré-visualização da imagem no modal
         modalImageUrlInput.addEventListener('input', () => {
             const url = modalImageUrlInput.value.trim();
             if (url) {
@@ -718,24 +843,7 @@
                 modalImagePreview.style.display = 'none';
             }
         });
-        modalImageFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    modalImagePreview.src = e.target.result;
-                    modalImagePreview.style.display = 'block';
-                    // Nota: Em um sistema real, você enviaria este 'e.target.result' (Base64) ou o próprio file
-                    // para um servidor e obteria um URL público para usar no `modalImageUrlInput`.
-                    // Aqui, estamos apenas simulando a pré-visualização.
-                };
-                reader.readAsDataURL(file); // Lê o arquivo como URL de dados (Base64)
-            } else {
-                modalImagePreview.style.display = 'none';
-            }
-        });
-
-
+        
         // Eventos para clique nos cards (editar, deletar, baixar)
         cardsContainer.addEventListener('click', (event) => {
             // Editar card
@@ -746,7 +854,7 @@
             // Deletar card
             if (event.target.classList.contains('delete-button')) {
                 const cardId = event.target.dataset.id;
-                if (confirm('Tem certeza que deseja excluir este item?')) {
+                if (confirm('Tem certeza que deseja excluir este item do Catálogo?')) {
                     cards = cards.filter(c => c.id !== cardId);
                     saveCards();
                     renderCards();
@@ -758,15 +866,17 @@
                 const cardId = cardElement.dataset.id;
                 const card = cards.find(c => c.id === cardId);
                 if (card && card.downloadUrl) {
-                    // Cria um link temporário e simula o clique para download
+                    // HINT: Em um sistema real, o downloadUrl seria o link para o arquivo no seu servidor de backend/armazenamento.
+                    // A propriedade `download` no `<a>` sugere o nome do arquivo.
                     const link = document.createElement('a');
                     link.href = card.downloadUrl;
-                    link.download = card.title; // Sugere o nome do arquivo
+                    link.download = card.title;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
+                    alert(`Iniciando download de "${card.title}"... (Simulação)`);
                 } else {
-                    alert('URL de download não disponível para este item.');
+                    alert('URL de download não disponível para este item. (Estudo: backend necessário para hospedagem)');
                 }
             }
         });
@@ -777,14 +887,11 @@
         // Eventos das Abas de Categoria
         categoryTabs.addEventListener('click', (event) => {
             if (event.target.classList.contains('tab-button')) {
-                // Remove 'active' de todos
                 document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.sub-tab-button').forEach(btn => btn.classList.remove('active')); // Limpa sub-abas também
+                document.querySelectorAll('.sub-tab-button').forEach(btn => btn.classList.remove('active')); 
 
-                // Adiciona 'active' ao clicado
                 event.target.classList.add('active');
                 
-                // Mostra/esconde sub-abas de Assets
                 if (event.target.dataset.category === 'Assets') {
                     assetsSubtabs.classList.add('visible');
                 } else {
@@ -797,9 +904,7 @@
         // Eventos das Sub-Abas de Assets
         assetsSubtabs.addEventListener('click', (event) => {
             if (event.target.classList.contains('sub-tab-button')) {
-                // Remove 'active' de todas as sub-abas
                 document.querySelectorAll('.sub-tab-button').forEach(btn => btn.classList.remove('active'));
-                // Adiciona 'active' à sub-aba clicada
                 event.target.classList.add('active');
                 renderCards();
             }
@@ -822,7 +927,7 @@
 
             // Simulação de alocação (para categorias)
             document.querySelectorAll('.tab-button').forEach(tab => {
-                if (tab.dataset.category !== 'all') { // Não permite arrastar para 'Todos'
+                if (tab.dataset.category !== 'all') {
                     tab.addEventListener('dragover', handleCategoryDragOver);
                     tab.addEventListener('dragleave', handleCategoryDragLeave);
                     tab.addEventListener('drop', handleCategoryDrop);
@@ -838,16 +943,15 @@
         function handleDragStart(e) {
             draggedCard = this;
             e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', this.dataset.id); // Transfere o ID do card
+            e.dataTransfer.setData('text/plain', this.dataset.id); 
             setTimeout(() => {
-                this.style.opacity = '0.5'; // Esconde o card arrastado
+                this.style.opacity = '0.5'; 
             }, 0);
         }
 
         function handleDragEnd(e) {
-            this.style.opacity = '1'; // Restaura opacidade
+            this.style.opacity = '1';
             draggedCard = null;
-            // Remove realce de todas as categorias
             document.querySelectorAll('.tab-button, .sub-tab-button').forEach(btn => {
                 btn.style.border = '1px solid var(--card-border)';
                 btn.style.boxShadow = 'none';
@@ -855,35 +959,23 @@
         }
 
         function handleDragOver(e) {
-            e.preventDefault(); // Necessário para permitir o drop
+            e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            if (e.target.classList.contains('card')) {
-                // Opcional: Efeito visual ao arrastar sobre outro card para reordenação
-            }
         }
 
-        function handleDragLeave(e) {
-            // Opcional: Remove efeito visual ao sair
-        }
+        function handleDragLeave(e) {}
 
         function handleDrop(e) {
             e.preventDefault();
             if (draggedCard && e.target.closest('.cards-container') === cardsContainer) {
-                // Lógica de reordenação (inserir o card arrastado antes/depois do card alvo)
                 const targetCard = e.target.closest('.card');
                 if (targetCard && targetCard !== draggedCard) {
                     const targetRect = targetCard.getBoundingClientRect();
-                    const draggedRect = draggedCard.getBoundingClientRect();
-
                     if (e.clientY < targetRect.top + targetRect.height / 2) {
-                        // Inserir antes
                         cardsContainer.insertBefore(draggedCard, targetCard);
                     } else {
-                        // Inserir depois
                         cardsContainer.insertBefore(draggedCard, targetCard.nextSibling);
                     }
-
-                    // Atualizar a ordem no array 'cards' e no localStorage
                     const reorderedIds = Array.from(cardsContainer.children).map(c => c.dataset.id);
                     cards.sort((a, b) => reorderedIds.indexOf(a.id) - reorderedIds.indexOf(b.id));
                     saveCards();
@@ -895,18 +987,18 @@
         function handleCategoryDragOver(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            this.style.border = '2px solid var(--text-accent)'; // Realça a aba
+            this.style.border = '2px solid var(--text-accent)';
             this.style.boxShadow = '0 0 15px rgba(255, 0, 0, 0.6)';
         }
 
         function handleCategoryDragLeave(e) {
-            this.style.border = '1px solid var(--card-border)'; // Restaura borda
+            this.style.border = '1px solid var(--card-border)';
             this.style.boxShadow = 'none';
         }
 
         function handleCategoryDrop(e) {
             e.preventDefault();
-            this.style.border = '1px solid var(--card-border)'; // Restaura borda
+            this.style.border = '1px solid var(--card-border)';
             this.style.boxShadow = 'none';
 
             if (draggedCard) {
@@ -915,16 +1007,15 @@
 
                 const cardIndex = cards.findIndex(c => c.id === cardId);
                 if (cardIndex !== -1) {
-                    // Atualiza a categoria do card no array de dados
                     cards[cardIndex].category = newCategory;
-                    saveCards(); // Salva a mudança
-                    renderCards(); // Re-renderiza para que o card apareça na nova categoria (se filtrada)
+                    saveCards();
+                    renderCards();
                     alert(`Item "${cards[cardIndex].title}" realocado para "${newCategory}"`);
                 }
             }
         }
         
-        // --- Eventos da Área de Arrastar/Soltar (simulação de novo card) ---
+        // --- Eventos da Área de Arrastar/Soltar (simulação de upload e processamento) ---
         dropArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropArea.classList.add('highlight');
@@ -934,28 +1025,18 @@
             dropArea.classList.remove('highlight');
         });
 
-        dropArea.addEventListener('drop', (e) => {
+        dropArea.addEventListener('drop', async (e) => {
             e.preventDefault();
             dropArea.classList.remove('highlight');
 
             const files = e.dataTransfer.files;
             if (files.length > 0) {
-                // Simulamos que o primeiro arquivo arrastado é uma imagem e um item
                 const file = files[0];
-                alert(`Simulando o "upload" de: ${file.name}\n(Em um sistema real, o arquivo seria enviado e processado por um servidor)`);
-                // Abre o modal de adição com pré-visualização (se for imagem)
-                if (file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        modalImagePreview.src = e.target.result;
-                        modalImagePreview.style.display = 'block';
-                    };
-                    reader.readAsDataURL(file);
-                }
-                modalTitleInput.value = file.name.split('.')[0]; // Sugere o nome
-                modalDescriptionInput.value = `Item arrastado: ${file.name}`;
-                modalDownloadUrlInput.value = `https://exemplo.com/simulado_download/${file.name}`; // URL fictícia
-                openModal(); // Abre o modal para você preencher os detalhes reais
+                // HINT: Aqui, em um sistema real, o arquivo 'file' seria enviado via AJAX/fetch para um backend.
+                // O backend então processaria, armazenaria e devolveria metadados e um URL público.
+                // O uso do processamento local aqui é APENAS para simular a barra de loading e pré-preencher o modal.
+
+                await simulateProcessing(file.name, file.type);
             }
         });
 
