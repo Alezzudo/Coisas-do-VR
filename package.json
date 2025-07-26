@@ -4,13 +4,13 @@
   "description": "Seu Catalogo Autonomo alimentado por Electron",
   "main": "main.js", // Garanta que esta linha aponta para main.js
   "scripts": {
-    "start": "electron .", // Adicione esta linha
+    "start": "electron .", // Mantenha esta linha
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^XX.Y.Z" // A versão do Electron pode ser diferente
+    "electron": "^XX.Y.Z" // Sua versão do Electron
   }
 }
