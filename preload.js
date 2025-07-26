@@ -21,13 +21,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Listeners para comunicação do main para o renderer (progresso)
     onProcessingFileProgress: (callback) => {
-        ipcRenderer.on('processing-file-progress', (event, args) => callback(args));
+        const listener = (event, args) => callback(args);
+        ipcRenderer.on('processing-file-progress', listener);
+        // Return unsubscribe function
+        return () => ipcRenderer.removeListener('processing-file-progress', listener);
     },
     onProcessingOverallProgress: (callback) => {
-        ipcRenderer.on('processing-overall-progress', (event, args) => callback(args));
+        const listener = (event, args) => callback(args);
+        ipcRenderer.on('processing-overall-progress', listener);
+        return () => ipcRenderer.removeListener('processing-overall-progress', listener);
     },
     onProcessingBatchComplete: (callback) => {
-        ipcRenderer.on('processing-batch-complete', (event, args) => callback(args));
+        const listener = (event, args) => callback(args);
+        ipcRenderer.on('processing-batch-complete', listener);
+        return () => ipcRenderer.removeListener('processing-batch-complete', listener);
     },
 
     // API para logging do renderer para o main
@@ -39,12 +46,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // Listener para erros globais no processo de renderização (para debug)
 window.addEventListener('DOMContentLoaded', () => {
     console.log("preload: DOMContentLoaded");
-    process.on('uncaughtException', (err) => {
-        console.error("Uncaught Exception in preload:", err);
-        ipcRenderer.send('log', `Uncaught Exception in preload: ${err.message}`, 'error');
-    });
+
+    // Captura erros não tratados em Promises
     window.addEventListener('unhandledrejection', (event) => {
         console.error("Unhandled Rejection in preload:", event.reason);
-        ipcRenderer.send('log', `Unhandled Rejection in preload: ${event.reason.message || event.reason}`, 'error');
+        ipcRenderer.send('log', `Unhandled Rejection in preload: ${event.reason && event.reason.message ? event.reason.message : event.reason}`, 'error');
     });
+
+    // Captura erros globais de execução
+    window.onerror = (message, source, lineno, colno, error) => {
+        console.error("Uncaught Exception in preload:", message, error);
+        ipcRenderer.send('log', `Uncaught Exception in preload: ${message}`, 'error');
+    };
 });
