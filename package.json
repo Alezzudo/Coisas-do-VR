@@ -1,16 +1,21 @@
 {
   "name": "catalogo-autonomo",
   "version": "1.0.0",
-  "description": "Seu Catalogo Autonomo alimentado por Electron",
-  "main": "main.js", // Garanta que esta linha aponta para main.js
+  "description": "Seu bibliotecário pessoal de recursos VR, totalmente autônomo.",
+  "main": "main.js",
   "scripts": {
-    "start": "electron .", // Mantenha esta linha
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Seu Nome",
+  "license": "MIT",
   "devDependencies": {
-    "electron": "^XX.Y.Z" // Sua versão do Electron
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10"
   }
 }
